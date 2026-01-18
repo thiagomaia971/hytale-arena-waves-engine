@@ -1,4 +1,4 @@
-package com.miilhozinho.mobwavesengine.util;
+package com.miilhozinho.arenawavesengine.util;
 
 import com.hypixel.hytale.server.core.Constants;
 

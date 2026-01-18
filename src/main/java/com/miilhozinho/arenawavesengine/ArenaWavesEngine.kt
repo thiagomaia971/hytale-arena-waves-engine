@@ -1,14 +1,16 @@
-package com.miilhozinho.mobwavesengine
+package com.miilhozinho.arenawavesengine
 
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
-import com.miilhozinho.mobwavesengine.util.LogUtil
+import com.miilhozinho.arenawavesengine.command.ArenaWavesEngineCommand
+import com.miilhozinho.arenawavesengine.util.LogUtil
 
-class MobWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
+class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun setup() {
         super.setup()
         LogUtil.info("Setup")
+        commandRegistry.registerCommand(ArenaWavesEngineCommand())
     }
 
     override fun start() {

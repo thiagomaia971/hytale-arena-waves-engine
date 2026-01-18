@@ -11,7 +11,7 @@
     }
   ],
   "Website": "https://github.com/yourusername/hytale-plugin-template",
-  "Main": "com.miilhozinho.mobwavesengine.MobWavesEngine",
+  "Main": "com.miilhozinho.arenawavesengine.ArenaWavesEngine",
   "ServerVersion": "*",
   "Dependencies": {
     "Hytale:EntityModule": "*",
