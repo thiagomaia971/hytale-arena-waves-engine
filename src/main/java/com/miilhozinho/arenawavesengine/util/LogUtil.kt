@@ -4,7 +4,7 @@ import com.hypixel.hytale.logger.HytaleLogger
 import java.util.logging.Level
 
 object LogUtil {
-    private val logger: HytaleLogger = HytaleLogger.getLogger().getSubLogger("MobWavesEngine")
+    private val logger: HytaleLogger = HytaleLogger.getLogger().getSubLogger("ArenaWavesEngine")
     fun info(message: String) {
         logger
             .at(Level.INFO)
