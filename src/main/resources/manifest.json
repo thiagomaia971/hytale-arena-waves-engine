@@ -1,0 +1,23 @@
+{
+  "Group": "Miilhozinho",
+  "Name": "${Name}",
+  "Version": "${Version}",
+  "Description": "${Description}",
+  "Authors": [
+    {
+      "Name": "Thiago Maia da Costa",
+      "Email": "thiago.maia971@gmail.com",
+      "Url": "https://your-website.com"
+    }
+  ],
+  "Website": "https://github.com/yourusername/hytale-plugin-template",
+  "Main": "com.miilhozinho.mobwavesengine.MobWavesEngine",
+  "ServerVersion": "*",
+  "Dependencies": {
+    "Hytale:EntityModule": "*",
+    "Hytale:AssetModule": "*"
+  },
+  "OptionalDependencies": {},
+  "DisabledByDefault": false,
+  "IncludesAssetPack": true
+}
