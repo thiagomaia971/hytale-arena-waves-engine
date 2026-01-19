@@ -54,7 +54,12 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
         world: World
     ) {
         val sessionStartedEvent = SessionStarted().apply {
-            waveMapId = "default_arena_map";
+            this.waveMapId = "default_arena_map";
+            this.context = context;
+            this.store = store;
+            this.ref = ref;
+            this.playerRef = playerRef;
+            this.world = world;
         }
         HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
 //        val npcs = listOf<BuilderInfo>(
@@ -95,7 +100,7 @@ class NpcSpawn {
         test: Boolean = false,
         positionSet: String? = null,
         spawnOnGround: Boolean = false,
-    ) {
+    ): NPCEntity {
 
         val npcPlugin = NPCPlugin.get()
         val roleInfo = npcBuilderInfo
@@ -244,7 +249,7 @@ class NpcSpawn {
                             if (positionSet != null) {
                                 position = this.parseVector3d(context, positionSet)
                                 if (position == null) {
-                                    return
+                                    throw GeneralCommandException(Message.raw("Position null"))
                                 }
 
                                 position.y -= model!!.getBoundingBox()!!.min.y
@@ -289,6 +294,7 @@ class NpcSpawn {
                                 HeadRotation.getComponentType()
                             ) as HeadRotation?
                         )
+
 
                         val npcUuidComponent: UUIDComponent? = checkNotNull(
                             store.getComponent<UUIDComponent?>(
@@ -338,6 +344,7 @@ class NpcSpawn {
                             npcUuidComponent!!.getUuid(),
                             Vector3d.formatShortString(npcPosition)
                         )
+                        return npc
                     }
                 } catch (e: IllegalStateException) {
                     NPCPlugin.get().getLogger().at(Level.WARNING)
@@ -363,6 +370,7 @@ class NpcSpawn {
                 }
             }
         }
+        throw GeneralCommandException(Message.raw("Failed to spawn"))
     }
 
 

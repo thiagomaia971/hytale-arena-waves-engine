@@ -1,11 +1,18 @@
 package com.miilhozinho.arenawavesengine.service
 
+import com.hypixel.hytale.server.core.command.system.ParseResult
+import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
+import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.config
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
+import com.miilhozinho.arenawavesengine.command.NpcSpawn
 import com.miilhozinho.arenawavesengine.config.ArenaMapDefinition
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
 import com.miilhozinho.arenawavesengine.config.EnemyDefinition
 import com.miilhozinho.arenawavesengine.domain.WaveState
+import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -20,18 +27,19 @@ import java.util.concurrent.ConcurrentHashMap
  * - Session state persistence
  */
 class WaveEngine(
-    public val plugin: ArenaWavesEngine
+    val plugin: ArenaWavesEngine
 ) {
 
     // Track entities spawned per session for cleanup
     private val sessionEntities = ConcurrentHashMap<UUID, MutableSet<UUID>>()
+    private val npcSpawn = NpcSpawn()
 
     /**
      * Processes one tick of wave logic for a session.
      * Called every second by WaveScheduler.
      */
-    fun processTick(sessionId: UUID) {
-        val config = plugin.config?.get() ?: return
+    fun processTick(sessionId: UUID, event: SessionStarted) {
+        val config = config
         val session = config.sessions.find { it.id == sessionId } ?: return
 
         // Skip processing if session is not in an active state
@@ -42,7 +50,7 @@ class WaveEngine(
 
         when (session.state) {
             WaveState.RUNNING -> processRunningState(session, config)
-            WaveState.SPAWNING -> processSpawningState(session, config)
+            WaveState.SPAWNING -> processSpawningState(session, config, event)
             WaveState.WAITING_CLEAR -> processWaitingClearState(session, config)
             else -> {
                 LogUtil.warn("[WaveEngine] Unexpected state ${session.state} for session $sessionId")
@@ -55,7 +63,7 @@ class WaveEngine(
      */
     fun startSession(session: ArenaSession, mapDefinition: ArenaMapDefinition): ArenaSession {
         // Initialize entity tracking for this session
-        sessionEntities[session.id] = ConcurrentHashMap.newKeySet()
+        sessionEntities[session.id] = ConcurrentHashMap.newKeySet<UUID>()
 
         // Update session with map info and start state
         val updatedSession = ArenaSession().apply {
@@ -89,22 +97,22 @@ class WaveEngine(
         val mapDef = config.arenaMaps.find { it.id == session.waveMapId }
         if (mapDef == null) {
             LogUtil.severe("[WaveEngine] Map definition ${session.waveMapId} not found for session ${session.id}")
-            updateSessionState(session.id, WaveState.FAILED)
+            updateSessionState(session, WaveState.FAILED)
             return
         }
 
         // Check if we have waves left
         if (session.currentWave >= mapDef.waves.size) {
             // All waves completed
-            updateSessionState(session.id, WaveState.COMPLETED)
+            updateSessionState(session, WaveState.COMPLETED)
             return
         }
 
         // Start spawning current wave
-        updateSessionState(session.id, WaveState.SPAWNING)
+        updateSessionState(session, WaveState.SPAWNING)
     }
 
-    private fun processSpawningState(session: ArenaSession, config: ArenaWavesEngineConfig) {
+    private fun processSpawningState(session: ArenaSession, config: ArenaWavesEngineConfig, event: SessionStarted) {
         val mapDef = config.arenaMaps.find { it.id == session.waveMapId } ?: return
         val currentWaveDef = mapDef.waves.getOrNull(session.currentWave) ?: return
 
@@ -124,18 +132,18 @@ class WaveEngine(
             val canSpawnThisTick = (maxConcurrent - currentAliveCount).coerceAtMost(remainingToSpawn)
 
             if (canSpawnThisTick > 0) {
-                spawnEnemies(enemyDef, canSpawnThisTick, session)
+                spawnEnemies(enemyDef, canSpawnThisTick, session, event)
             }
-            emptyList() // We'll handle spawning in spawnEnemies
+            listOf<UUID>() // We'll handle spawning in spawnEnemies
         }
 
         // Check if wave is complete (all enemies spawned and waiting to clear)
         if (isWaveComplete(session.id, currentWaveDef)) {
-            updateSessionState(session.id, WaveState.WAITING_CLEAR)
+            updateSessionState(session, WaveState.WAITING_CLEAR)
         }
     }
 
-    private fun processWaitingClearState(session: ArenaSession, config: com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig) {
+    private fun processWaitingClearState(session: ArenaSession, config: ArenaWavesEngineConfig) {
         // Check if all enemies are dead
         val aliveEntities = sessionEntities[session.id] ?: emptySet()
         if (aliveEntities.isEmpty()) {
@@ -146,9 +154,9 @@ class WaveEngine(
             // Check if this was the last wave
             val mapDef = config.arenaMaps.find { it.id == session.waveMapId }
             if (mapDef != null && nextWave >= mapDef.waves.size) {
-                updateSessionState(session.id, WaveState.COMPLETED)
+                updateSessionState(session, WaveState.COMPLETED)
             } else {
-                updateSessionState(session.id, WaveState.RUNNING)
+                updateSessionState(session, WaveState.RUNNING)
             }
         }
     }
@@ -159,7 +167,7 @@ class WaveEngine(
         return enemyDef.count
     }
 
-    private fun spawnEnemies(enemyDef: EnemyDefinition, count: Int, session: ArenaSession): List<UUID> {
+    private fun spawnEnemies(enemyDef: EnemyDefinition, count: Int, session: ArenaSession, event: SessionStarted): List<UUID> {
         val spawnedIds = mutableListOf<UUID>()
 
         // TODO: Implement actual spawning logic using NpcSpawn
@@ -167,6 +175,16 @@ class WaveEngine(
         // For now, just simulate spawning by adding to tracking
 
         for (i in 0 until count) {
+            val entityId =
+                npcSpawn.execute(
+                    event.context,
+                    event.store,
+                    event.ref,
+                    event.playerRef,
+                    event.world,
+                    NPC_ROLE.parse(enemyDef.enemyType, ParseResult()) as BuilderInfo,
+                    1
+                )
             val fakeEntityId = UUID.randomUUID()
             spawnedIds.add(fakeEntityId)
 
@@ -187,10 +205,11 @@ class WaveEngine(
     /**
      * Updates session state in the configuration.
      */
-    private fun updateSessionState(sessionId: UUID, newState: WaveState) {
-        // This would need to update the config and persist it
-        // For now, just log the state change
-        LogUtil.info("[WaveEngine] Session $sessionId state changed to $newState")
+    private fun updateSessionState(session: ArenaSession, newState: WaveState) {
+        session.state = newState
+        configState?.save()
+
+        LogUtil.info("[WaveEngine] Session ${session.id} state changed to $newState")
     }
 
     /**

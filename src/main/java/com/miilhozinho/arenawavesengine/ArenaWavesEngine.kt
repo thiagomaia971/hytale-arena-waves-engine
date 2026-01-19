@@ -13,10 +13,6 @@ import com.miilhozinho.arenawavesengine.util.ConfigLoader
 import com.miilhozinho.arenawavesengine.util.LogUtil
 
 class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
-
-    var config: Config<ArenaWavesEngineConfig?>? = null
-    var pluginName = "ArenaWavesEngine"
-
     // Wave services
     lateinit var waveEngine: WaveEngine
     lateinit var waveScheduler: WaveScheduler
@@ -24,7 +20,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     init {
         try {
             ConfigLoader(dataDirectory).createOrLoad(pluginName)
-            config = this.withConfig<ArenaWavesEngineConfig?>(pluginName, ArenaWavesEngineConfig.CODEC)
+            configState = this.withConfig<ArenaWavesEngineConfig?>(pluginName, ArenaWavesEngineConfig.CODEC)
 
             // Initialize the new configuration architecture
 //            CONFIG?.get()?.initializeWithProvider(dataDirectory)
@@ -37,10 +33,11 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun setup() {
         super.setup()
+        config = configState?.get()!!
+        config.validate()
 
-        config?.get()?.validate()
         LogUtil.info("Configuration loaded successfully with new architecture")
-        if (config?.get()?.debugLoggingEnabled == true) {
+        if (config.debugLoggingEnabled == true) {
             LogUtil.info("Debug logging enabled")
         }
 
@@ -69,5 +66,8 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     }
 
     companion object {
+        var configState: Config<ArenaWavesEngineConfig?>? = null
+        var config: ArenaWavesEngineConfig = ArenaWavesEngineConfig()
+        var pluginName = "ArenaWavesEngine"
     }
 }

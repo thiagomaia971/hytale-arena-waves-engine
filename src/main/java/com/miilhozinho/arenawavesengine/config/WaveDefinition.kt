@@ -41,7 +41,7 @@ class WaveDefinition {
             .append(
                 KeyedCodec("Enemies", ENEMY_ARRAY_CODEC),
                 { config, value, _ -> config!!.enemies = value.toList() },
-                { config, _ -> config!!.enemies.toList() as Array<out EnemyDefinition?>? }
+                { config, _ -> config!!.enemies.toTypedArray() }
             ).add()
             .build()
     }

@@ -1,7 +1,9 @@
 package com.miilhozinho.arenawavesengine.service
 
 import com.hypixel.hytale.server.core.HytaleServer
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
 import com.miilhozinho.arenawavesengine.config.ArenaSession
+import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
@@ -29,8 +31,10 @@ class WaveScheduler(
      * The task runs every second and processes wave logic for the session.
      */
     fun startSession(event: SessionStarted): Boolean {
-        val session = ArenaSession()
-        session.waveMapId = event.waveMapId
+        val session = ArenaSession().apply {
+            this.waveMapId = event.waveMapId
+            this.state = WaveState.RUNNING
+        }
         val sessionId = session.id
 
         // Check if session already has an active task
@@ -44,7 +48,7 @@ class WaveScheduler(
         // Create repeating task (runs every 1 second)
         val task = HytaleServer.SCHEDULED_EXECUTOR.scheduleWithFixedDelay({
             try {
-                waveEngine.processTick(sessionId)
+                waveEngine.processTick(sessionId, event)
             } catch (e: Exception) {
                 LogUtil.severe("[WaveScheduler] Error processing tick for session $sessionId: ${e.message}")
                 // Stop the session on critical errors
@@ -63,8 +67,9 @@ class WaveScheduler(
     }
 
     private fun saveSession(session: ArenaSession) {
-        waveEngine.plugin.config?.get()?.sessions += session
-        waveEngine.plugin.config?.save()
+        var config = configState?.get()
+        config?.sessions += session
+        configState?.save()
     }
 
     /**

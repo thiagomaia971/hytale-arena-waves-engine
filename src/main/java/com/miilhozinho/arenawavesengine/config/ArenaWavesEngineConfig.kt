@@ -17,7 +17,6 @@ import java.util.function.Supplier
 class ArenaWavesEngineConfig {
     // Core configuration fields (maintain existing interface)
     var enabled: Boolean = true
-        private set
     var defaultWaveCount: Int = 5
         private set
     var defaultMobsPerWave: Int = 10
@@ -147,12 +146,12 @@ class ArenaWavesEngineConfig {
             .append(
                 KeyedCodec("ArenaMaps", ARENA_MAP_DEF_ARRAY_CODEC),
                 { config, value, _ -> config!!.arenaMaps = value.toList() },
-                { config, _ -> config!!.arenaMaps.toList() as Array<out ArenaMapDefinition?>? }
+                { config, _ -> config!!.arenaMaps.toTypedArray() }
             ).add()
             .append(
                 KeyedCodec("Sessions", ARENA_SESSION_DEF_ARRAY_CODEC),
                 { config, value, _ -> config!!.sessions = value.toList() },
-                { config, _ -> config!!.sessions.toList() as Array<out ArenaSession?>? }
+                { config, _ -> config!!.sessions.toTypedArray() }
             ).add()
             .build()
     }

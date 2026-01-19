@@ -1,11 +1,11 @@
 package com.miilhozinho.arenawavesengine.util
 
 import com.hypixel.hytale.logger.HytaleLogger
-import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.PLUGIN_NAME
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.pluginName
 import java.util.logging.Level
 
 object LogUtil {
-    private val logger: HytaleLogger = HytaleLogger.getLogger().getSubLogger(PLUGIN_NAME)
+    private val logger: HytaleLogger = HytaleLogger.getLogger().getSubLogger(pluginName)
     fun info(message: String) {
         logger
             .at(Level.INFO)
