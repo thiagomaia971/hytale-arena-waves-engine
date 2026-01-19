@@ -37,26 +37,23 @@ class ArenaWavesEngineConfig {
 
     // Domain data fields (maintain existing interface)
     var arenaMaps: List<ArenaMapDefinition> = listOf(
-        ArenaMapDefinition().let { it ->
-            it.id = "default_arena_map"
-            it.name = "Default arena map"
-            it.description = "Any description for default arena map"
-            it.waves = listOf(
-                WaveDefinition().let { it ->
-                    it.interval = 30
-                    it.enemies = listOf(
-                        EnemyDefinition().let { it.enemyType = "Skeleton"; it.count = 3; it; },
-                        EnemyDefinition().let { it.enemyType = "Fox"; it.count = 3; it; },
+        ArenaMapDefinition().apply {
+            id = "default_arena_map"
+            name = "Default arena map"
+            description = "Any description for default arena map"
+            waves = listOf(
+                WaveDefinition().apply {
+                    interval = 30
+                    enemies = listOf(
+                        EnemyDefinition().apply { enemyType = "Skeapplyon"; count = 3; },
+                        EnemyDefinition().apply { enemyType = "Fox"; count = 3; },
                     )
-                    it
                 }
             )
-            it
         }
     )
         private set
-    var sessions: List<ArenaSession> = emptyList()
-        private set
+    var sessions: List<ArenaSession> = listOf()
 
     /**
      * Legacy validation method (now delegates to new validation system)

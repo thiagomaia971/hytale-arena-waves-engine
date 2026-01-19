@@ -1,19 +1,30 @@
 package com.miilhozinho.arenawavesengine
 
+import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
 import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.command.ArenaWavesEngineCommand
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
+import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.service.WaveEngine
+import com.miilhozinho.arenawavesengine.service.WaveScheduler
 import com.miilhozinho.arenawavesengine.util.ConfigLoader
 import com.miilhozinho.arenawavesengine.util.LogUtil
 
 class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
+    var config: Config<ArenaWavesEngineConfig?>? = null
+    var pluginName = "ArenaWavesEngine"
+
+    // Wave services
+    lateinit var waveEngine: WaveEngine
+    lateinit var waveScheduler: WaveScheduler
+
     init {
         try {
-            ConfigLoader(dataDirectory).createOrLoad(PLUGIN_NAME)
-            CONFIG = this.withConfig<ArenaWavesEngineConfig?>(PLUGIN_NAME, ArenaWavesEngineConfig.CODEC)
+            ConfigLoader(dataDirectory).createOrLoad(pluginName)
+            config = this.withConfig<ArenaWavesEngineConfig?>(pluginName, ArenaWavesEngineConfig.CODEC)
 
             // Initialize the new configuration architecture
 //            CONFIG?.get()?.initializeWithProvider(dataDirectory)
@@ -27,14 +38,20 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     override fun setup() {
         super.setup()
 
-        CONFIG?.get()?.validate()
+        config?.get()?.validate()
         LogUtil.info("Configuration loaded successfully with new architecture")
-        if (CONFIG?.get()?.debugLoggingEnabled == true) {
+        if (config?.get()?.debugLoggingEnabled == true) {
             LogUtil.info("Debug logging enabled")
         }
 
+        // Initialize wave services
+        waveEngine = WaveEngine(this)
+        waveScheduler = WaveScheduler(waveEngine)
+
+        LogUtil.info("[ArenaWavesEngine] Wave services initialized")
         LogUtil.info("Setup")
         commandRegistry.registerCommand(ArenaWavesEngineCommand())
+        HytaleServer.get().eventBus.register<SessionStarted>(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
         // entityStoreRegistry.registerSystem() // TODO: Implement system registration
     }
 
@@ -43,11 +60,14 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     }
 
     override fun shutdown() {
-        LogUtil.info("Shutdown")
+        // Clean shutdown of wave services
+        if (::waveScheduler.isInitialized) {
+            waveScheduler.shutdown()
+        }
+
+        LogUtil.info("[ArenaWavesEngine] Shutdown complete")
     }
 
     companion object {
-        var CONFIG: Config<ArenaWavesEngineConfig?>? = null
-        var PLUGIN_NAME = "ArenaWavesEngine"
     }
 }

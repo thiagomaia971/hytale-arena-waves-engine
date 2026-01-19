@@ -6,6 +6,7 @@ import com.hypixel.hytale.function.consumer.TriConsumer
 import com.hypixel.hytale.math.util.MathUtil
 import com.hypixel.hytale.math.vector.Vector3d
 import com.hypixel.hytale.math.vector.Vector3f
+import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.asset.type.model.config.Model
 import com.hypixel.hytale.server.core.asset.type.model.config.ModelAsset
@@ -36,6 +37,7 @@ import com.hypixel.hytale.server.npc.role.RoleDebugFlags
 import com.hypixel.hytale.server.spawning.ISpawnableWithModel
 import com.hypixel.hytale.server.spawning.SpawnTestResult
 import com.hypixel.hytale.server.spawning.SpawningContext
+import com.miilhozinho.arenawavesengine.events.SessionStarted
 import java.util.*
 import java.util.concurrent.ThreadLocalRandom
 import java.util.logging.Level
@@ -51,14 +53,18 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
         playerRef: PlayerRef,
         world: World
     ) {
-        val npcs = listOf<BuilderInfo>(
-            NPC_ROLE.parse("Skeleton", ParseResult()) as BuilderInfo,
-            NPC_ROLE.parse("Skeleton_Pirate_Gunner", ParseResult()) as BuilderInfo,
-            NPC_ROLE.parse("Skeleton_Pirate_Striker", ParseResult()) as BuilderInfo,
-        )
-        for (npc in npcs) {
-            NpcSpawn().execute(context, store, ref, playerRef, world,  npc)
+        val sessionStartedEvent = SessionStarted().apply {
+            waveMapId = "default_arena_map";
         }
+        HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
+//        val npcs = listOf<BuilderInfo>(
+//            NPC_ROLE.parse("Skeleton", ParseResult()) as BuilderInfo,
+//            NPC_ROLE.parse("Skeleton_Pirate_Gunner", ParseResult()) as BuilderInfo,
+//            NPC_ROLE.parse("Skeleton_Pirate_Striker", ParseResult()) as BuilderInfo,
+//        )
+//        for (npc in npcs) {
+//            NpcSpawn().execute(context, store, ref, playerRef, world,  npc)
+//        }
     }
 
 }

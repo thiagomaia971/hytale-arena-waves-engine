@@ -10,14 +10,14 @@ import java.util.UUID
 import java.util.function.Supplier
 
 class ArenaSession {
-    val id: UUID = UUID.randomUUID()
-    val owner: UUID = UUID.randomUUID()
-    val center: Vector3d = Vector3d()
-    val state: WaveState = WaveState.IDLE
-    val currentWave: Int = 0
-    val aliveEntityIds: Set<UUID> = emptySet()
-    val waveMapId: String = ""
-    val startTime: Long = System.currentTimeMillis() // When session started
+    var id: UUID = UUID.randomUUID()
+    var owner: UUID = UUID.randomUUID()
+    var center: Vector3d = Vector3d()
+    var state: WaveState = WaveState.IDLE
+    var currentWave: Int = 0
+    var aliveEntityIds: Set<UUID> = emptySet()
+    var waveMapId: String = ""
+    var startTime: Long = System.currentTimeMillis() // When session started
 
     /**
      * Validates this arena map definition
