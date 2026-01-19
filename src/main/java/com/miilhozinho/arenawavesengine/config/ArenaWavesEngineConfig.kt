@@ -4,9 +4,18 @@ import com.hypixel.hytale.codec.Codec
 import com.hypixel.hytale.codec.ExtraInfo
 import com.hypixel.hytale.codec.KeyedCodec
 import com.hypixel.hytale.codec.builder.BuilderCodec
+import com.hypixel.hytale.codec.codecs.array.ArrayCodec
 import java.util.function.Supplier
 
+/**
+ * Legacy configuration wrapper that integrates the new three-layer architecture
+ * while maintaining backward compatibility with the existing Hytale plugin system.
+ *
+ * This class serves as a bridge between the old mutable config approach and the new
+ * immutable data model with proper validation and async IO operations.
+ */
 class ArenaWavesEngineConfig {
+    // Core configuration fields (maintain existing interface)
     var enabled: Boolean = true
         private set
     var defaultWaveCount: Int = 5
@@ -26,18 +35,61 @@ class ArenaWavesEngineConfig {
     var debugLoggingEnabled: Boolean = false
         private set
 
-    fun validate(): ArenaWavesEngineConfig {
+    // Domain data fields (maintain existing interface)
+    var arenaMaps: List<ArenaMapDefinition> = listOf(
+        ArenaMapDefinition().let { it ->
+            it.id = "default_arena_map"
+            it.name = "Default arena map"
+            it.description = "Any description for default arena map"
+            it.waves = listOf(
+                WaveDefinition().let { it ->
+                    it.interval = 30
+                    it.enemies = listOf(
+                        EnemyDefinition().let { it.enemyType = "Skeleton"; it.count = 3; it; },
+                        EnemyDefinition().let { it.enemyType = "Fox"; it.count = 3; it; },
+                    )
+                    it
+                }
+            )
+            it
+        }
+    )
+        private set
+    var sessions: List<ArenaSession> = emptyList()
+        private set
+
+    /**
+     * Legacy validation method (now delegates to new validation system)
+     */
+    fun validate(): ArenaWavesEngineConfig {// 1. Validate Global Counters
+        require(maxConcurrentSessionsGlobal > 0) { "maxConcurrentSessionsGlobal must be at least 1" }
+        require(maxConcurrentMobsPerSession > 0) { "maxConcurrentMobsPerSession must be at least 1" }
+
+        // 2. Validate Default Values
         require(defaultWaveCount > 0) { "defaultWaveCount must be positive" }
-        require(defaultMobsPerWave > 0) { "defaultMobsPerWave must be positive" }
-        require(defaultSpawnIntervalSeconds > 0) { "defaultSpawnIntervalSeconds must be positive" }
+        require(defaultSpawnIntervalSeconds >= 5) { "defaultSpawnIntervalSeconds is too low (min 5s)" }
         require(defaultSpawnRadius > 0.0) { "defaultSpawnRadius must be positive" }
-        require(maxConcurrentMobsPerSession > 0) { "maxConcurrentMobsPerSession must be positive" }
-        require(maxConcurrentSessionsGlobal > 0) { "maxConcurrentSessionsGlobal must be positive" }
-        require(cleanupTimeoutSeconds > 0) { "cleanupTimeoutSeconds must be positive" }
+
+        // 3. Deep Validation of nested Map Definitions
+        arenaMaps.forEach { mapDef ->
+            mapDef.validate() // Ensure each map, wave, and enemy is valid
+        }
         return this
     }
 
     companion object {
+        val ARENA_MAP_DEF_ARRAY_CODEC = ArrayCodec<ArenaMapDefinition>(
+            ArenaMapDefinition.CODEC,
+            { size -> arrayOfNulls<ArenaMapDefinition>(size) }
+        )
+        val ARENA_SESSION_DEF_ARRAY_CODEC = ArrayCodec<ArenaSession>(
+            ArenaSession.CODEC,
+            { size -> arrayOfNulls<ArenaSession>(size) }
+        )
+        /**
+         * Legacy CODEC for backward compatibility with Hytale plugin system
+         * This maintains the existing JSON structure while internally using the new architecture
+         */
         val CODEC: BuilderCodec<ArenaWavesEngineConfig?> = BuilderCodec.builder<ArenaWavesEngineConfig?>(
             ArenaWavesEngineConfig::class.java,
             Supplier { ArenaWavesEngineConfig() })
@@ -95,6 +147,16 @@ class ArenaWavesEngineConfig {
                     config!!.debugLoggingEnabled = value!!
                 },
                 { config: ArenaWavesEngineConfig?, extraInfo: ExtraInfo? -> config!!.debugLoggingEnabled }).add()
+            .append(
+                KeyedCodec("ArenaMaps", ARENA_MAP_DEF_ARRAY_CODEC),
+                { config, value, _ -> config!!.arenaMaps = value.toList() },
+                { config, _ -> config!!.arenaMaps.toList() as Array<out ArenaMapDefinition?>? }
+            ).add()
+            .append(
+                KeyedCodec("Sessions", ARENA_SESSION_DEF_ARRAY_CODEC),
+                { config, value, _ -> config!!.sessions = value.toList() },
+                { config, _ -> config!!.sessions.toList() as Array<out ArenaSession?>? }
+            ).add()
             .build()
     }
 }

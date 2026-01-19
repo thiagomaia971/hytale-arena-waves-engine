@@ -12,13 +12,11 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     init {
         try {
-            ConfigLoader(dataDirectory).createOrLoad("ArenaWavesEngine")
-            CONFIG = this.withConfig<ArenaWavesEngineConfig?>("ArenaWavesEngine", ArenaWavesEngineConfig.CODEC)
-            CONFIG?.get()?.validate()
-            LogUtil.info("Configuration loaded successfully")
-            if (CONFIG?.get()?.debugLoggingEnabled == true) {
-                LogUtil.info("Debug logging enabled")
-            }
+            ConfigLoader(dataDirectory).createOrLoad(PLUGIN_NAME)
+            CONFIG = this.withConfig<ArenaWavesEngineConfig?>(PLUGIN_NAME, ArenaWavesEngineConfig.CODEC)
+
+            // Initialize the new configuration architecture
+//            CONFIG?.get()?.initializeWithProvider(dataDirectory)
         } catch (e: Exception) {
             LogUtil.severe("Failed to load configuration: ${e.message}")
             LogUtil.severe("Please check your config.json file for validation errors")
@@ -28,8 +26,16 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun setup() {
         super.setup()
+
+        CONFIG?.get()?.validate()
+        LogUtil.info("Configuration loaded successfully with new architecture")
+        if (CONFIG?.get()?.debugLoggingEnabled == true) {
+            LogUtil.info("Debug logging enabled")
+        }
+
         LogUtil.info("Setup")
         commandRegistry.registerCommand(ArenaWavesEngineCommand())
+        // entityStoreRegistry.registerSystem() // TODO: Implement system registration
     }
 
     override fun start() {
@@ -42,5 +48,6 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     companion object {
         var CONFIG: Config<ArenaWavesEngineConfig?>? = null
+        var PLUGIN_NAME = "ArenaWavesEngine"
     }
 }

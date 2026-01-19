@@ -33,7 +33,7 @@ class ConfigLoader(
             val loaded = gson.fromJson(raw, ArenaWavesEngineConfig::class.java) ?: ArenaWavesEngineConfig()
             loaded.validate()
         } catch (e: Exception) {
-            LogUtil.warn("Failed to load density.json, using defaults. error=${e.message}")
+            LogUtil.warn("Failed to load $file, using defaults. error=${e.message}")
             ArenaWavesEngineConfig()
         }
     }
