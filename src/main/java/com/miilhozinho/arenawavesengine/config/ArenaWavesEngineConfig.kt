@@ -31,7 +31,7 @@ class ArenaWavesEngineConfig {
         private set
     var cleanupTimeoutSeconds: Int = 300
         private set
-    var debugLoggingEnabled: Boolean = false
+    var debugLoggingEnabled: Boolean = true
         private set
 
     // Domain data fields (maintain existing interface)
@@ -44,8 +44,8 @@ class ArenaWavesEngineConfig {
                 WaveDefinition().apply {
                     interval = 30
                     enemies = listOf(
-                        EnemyDefinition().apply { enemyType = "Skeapplyon"; count = 3; },
-                        EnemyDefinition().apply { enemyType = "Fox"; count = 3; },
+                        EnemyDefinition().apply { enemyType = "Skeleton"; count = 3; },
+                        EnemyDefinition().apply { enemyType = "Skeleton_Archer"; count = 1; },
                     )
                 }
             )

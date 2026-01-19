@@ -7,6 +7,7 @@ import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
+import java.util.UUID
 
 class SessionStarted : IEvent<Void> {
     lateinit var waveMapId: String

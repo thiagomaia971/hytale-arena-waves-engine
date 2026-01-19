@@ -1,21 +1,23 @@
 package com.miilhozinho.arenawavesengine.service
 
 import com.hypixel.hytale.server.core.command.system.ParseResult
+import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine
-import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.config
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
-import com.miilhozinho.arenawavesengine.command.NpcSpawn
+import com.miilhozinho.arenawavesengine.service.NpcSpawn
 import com.miilhozinho.arenawavesengine.config.ArenaMapDefinition
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
 import com.miilhozinho.arenawavesengine.config.EnemyDefinition
+import com.miilhozinho.arenawavesengine.config.WaveDefinition
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.collections.listOf
 
 /**
  * WaveEngine handles the core wave logic and spawn throttling for arena sessions.
@@ -39,8 +41,9 @@ class WaveEngine(
      * Called every second by WaveScheduler.
      */
     fun processTick(sessionId: UUID, event: SessionStarted) {
-        val config = config
+        val config = configState!!.get()!!
         val session = config.sessions.find { it.id == sessionId } ?: return
+        sessionEntities[session.id] = ConcurrentHashMap.newKeySet<UUID>()
 
         // Skip processing if session is not in an active state
         if (session.state == WaveState.IDLE || session.state == WaveState.STOPPED ||
@@ -92,9 +95,10 @@ class WaveEngine(
         LogUtil.info("[WaveEngine] Stopped session $sessionId")
     }
 
-    private fun processRunningState(session: ArenaSession, config: com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig) {
-        // Find the map definition
+    private fun processRunningState(session: ArenaSession, config: ArenaWavesEngineConfig) {
         val mapDef = config.arenaMaps.find { it.id == session.waveMapId }
+        LogUtil.debug("[WaveEngine] Process running state ${session.id} with map ${mapDef?.id}")
+
         if (mapDef == null) {
             LogUtil.severe("[WaveEngine] Map definition ${session.waveMapId} not found for session ${session.id}")
             updateSessionState(session, WaveState.FAILED)
@@ -104,6 +108,7 @@ class WaveEngine(
         // Check if we have waves left
         if (session.currentWave >= mapDef.waves.size) {
             // All waves completed
+            LogUtil.debug("All waves completed")
             updateSessionState(session, WaveState.COMPLETED)
             return
         }
@@ -115,13 +120,16 @@ class WaveEngine(
     private fun processSpawningState(session: ArenaSession, config: ArenaWavesEngineConfig, event: SessionStarted) {
         val mapDef = config.arenaMaps.find { it.id == session.waveMapId } ?: return
         val currentWaveDef = mapDef.waves.getOrNull(session.currentWave) ?: return
+        LogUtil.debug("[WaveEngine] Process spawning state ${session.id} with map ${mapDef.id}")
 
         // Check spawn throttling (max concurrent mobs per session)
         val currentAliveCount = sessionEntities[session.id]?.size ?: 0
         val maxConcurrent = config.maxConcurrentMobsPerSession
 
+        LogUtil.debug("[WaveEngine] Current mobs spawned: $currentAliveCount/$maxConcurrent")
         if (currentAliveCount >= maxConcurrent) {
             // Too many mobs alive, wait for some to die
+            LogUtil.debug("[WaveEngine] Too many mobs alive: $currentAliveCount/$maxConcurrent")
             return
         }
 
@@ -170,12 +178,8 @@ class WaveEngine(
     private fun spawnEnemies(enemyDef: EnemyDefinition, count: Int, session: ArenaSession, event: SessionStarted): List<UUID> {
         val spawnedIds = mutableListOf<UUID>()
 
-        // TODO: Implement actual spawning logic using NpcSpawn
-        // This would need access to CommandContext, Store, Ref, PlayerRef, World
-        // For now, just simulate spawning by adding to tracking
-
         for (i in 0 until count) {
-            val entityId =
+            val spawnReturn =
                 npcSpawn.execute(
                     event.context,
                     event.store,
@@ -185,21 +189,24 @@ class WaveEngine(
                     NPC_ROLE.parse(enemyDef.enemyType, ParseResult()) as BuilderInfo,
                     1
                 )
-            val fakeEntityId = UUID.randomUUID()
-            spawnedIds.add(fakeEntityId)
+            val npcUuidComponent: UUIDComponent = checkNotNull(
+                event.store.getComponent<UUIDComponent?>(
+                    spawnReturn.npcRef,
+                    UUIDComponent.getComponentType()
+                ) as UUIDComponent?
+            )
+            spawnedIds.add(npcUuidComponent.uuid)
 
             // Track spawned entity
-            sessionEntities[session.id]?.add(fakeEntityId)
+            sessionEntities[session.id]?.add(npcUuidComponent.uuid)
         }
 
         LogUtil.info("[WaveEngine] Spawned $count ${enemyDef.enemyType} for session ${session.id}")
         return spawnedIds
     }
 
-    private fun isWaveComplete(sessionId: UUID, waveDef: com.miilhozinho.arenawavesengine.config.WaveDefinition): Boolean {
-        // TODO: Check if all enemies for this wave have been spawned
-        // For now, assume waves complete immediately
-        return true
+    private fun isWaveComplete(sessionId: UUID, waveDef: WaveDefinition): Boolean {
+        return sessionEntities[sessionId]?.size == waveDef.enemies.sumOf { it.count }
     }
 
     /**

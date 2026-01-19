@@ -1,6 +1,7 @@
 package com.miilhozinho.arenawavesengine.service
 
 import com.hypixel.hytale.server.core.HytaleServer
+import com.hypixel.hytale.server.core.universe.Universe
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
@@ -36,6 +37,7 @@ class WaveScheduler(
             this.state = WaveState.RUNNING
         }
         val sessionId = session.id
+        LogUtil.debug("Session started: $sessionId")
 
         // Check if session already has an active task
         if (activeTasks.containsKey(sessionId)) {
@@ -47,17 +49,22 @@ class WaveScheduler(
 
         // Create repeating task (runs every 1 second)
         val task = HytaleServer.SCHEDULED_EXECUTOR.scheduleWithFixedDelay({
-            try {
-                waveEngine.processTick(sessionId, event)
-            } catch (e: Exception) {
-                LogUtil.severe("[WaveScheduler] Error processing tick for session $sessionId: ${e.message}")
-                // Stop the session on critical errors
-                stopSession(sessionId)
+            val world = Universe.get().worlds.get(event.world.name)
+            world!!.execute {
+                try {
+                    LogUtil.debug("[WaveScheduler] WaveScheduler started for ${event.world.name}")
+                    waveEngine.processTick(sessionId, event)
+                } catch (e: Exception) {
+                    LogUtil.severe("[WaveScheduler] Error processing tick for session $sessionId: ${e.message}")
+                    // Stop the session on critical errors
+                    stopSession(sessionId)
+                }
             }
         }, 0L, 1L, TimeUnit.SECONDS)
 
         // Register with TaskRegistry for automatic cleanup on shutdown
         waveEngine.plugin.taskRegistry.registerTask(task as ScheduledFuture<Void>)
+        LogUtil.debug("WaveScheduler started for session $sessionId")
 
         // Track the task
         activeTasks[sessionId] = task

@@ -48,7 +48,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
         LogUtil.info("Setup")
         commandRegistry.registerCommand(ArenaWavesEngineCommand())
-        HytaleServer.get().eventBus.register<SessionStarted>(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
+        HytaleServer.get().eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
         // entityStoreRegistry.registerSystem() // TODO: Implement system registration
     }
 

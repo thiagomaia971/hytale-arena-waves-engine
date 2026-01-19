@@ -1,6 +1,7 @@
 package com.miilhozinho.arenawavesengine.util
 
 import com.hypixel.hytale.logger.HytaleLogger
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.config
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.pluginName
 import java.util.logging.Level
 
@@ -25,8 +26,10 @@ object LogUtil {
     }
 
     fun debug(message: String) {
-        logger
-            .at(Level.FINE)
-            .log(message)
+        if (config.debugLoggingEnabled){
+            logger
+                .at(Level.INFO)
+                .log(message)
+        }
     }
 }
