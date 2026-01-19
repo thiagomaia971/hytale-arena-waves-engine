@@ -17,3 +17,7 @@ class SessionStarted : IEvent<Void> {
     lateinit var playerRef: PlayerRef
     lateinit var world: World
 }
+
+class SessionPaused : IEvent<Void> {
+    lateinit var sessionId: UUID
+}

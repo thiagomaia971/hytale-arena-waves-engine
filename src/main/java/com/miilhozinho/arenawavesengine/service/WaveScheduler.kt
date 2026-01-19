@@ -6,128 +6,116 @@ import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+import kotlin.apply
 
-/**
- * WaveScheduler manages scheduled tasks for arena wave sessions using Hytale's TaskRegistry.
- *
- * This service ensures:
- * - One scheduled task per active session (avoiding per-mob timers)
- * - Clean task cancellation on session stop/shutdown
- * - TaskRegistry integration for automatic cleanup
- */
-class WaveScheduler(
-    private val waveEngine: WaveEngine
-) {
+class WaveScheduler(private val waveEngine: WaveEngine) {
 
-    // Track session UUID -> ScheduledFuture mapping
     private val activeTasks = ConcurrentHashMap<UUID, ScheduledFuture<*>>()
 
-    /**
-     * Starts a wave session by creating exactly one scheduled task.
-     * The task runs every second and processes wave logic for the session.
-     */
     fun startSession(event: SessionStarted): Boolean {
-        val session = ArenaSession().apply {
-            this.waveMapId = event.waveMapId
-            this.state = WaveState.RUNNING
-        }
-        val sessionId = session.id
-        LogUtil.debug("Session started: $sessionId")
+        val sessionId = UUID.randomUUID() // Ensure unique ID for this instance
+        LogUtil.debug("[WaveScheduler] Attempting to start session: $sessionId for map: ${event.waveMapId}")
 
-        // Check if session already has an active task
         if (activeTasks.containsKey(sessionId)) {
-            LogUtil.warn("[WaveScheduler] Session $sessionId already has an active task")
+            LogUtil.warn("[WaveScheduler] Session $sessionId is already being tracked.")
             return false
         }
 
-        saveSession(session)
+        val session = ArenaSession().apply {
+            this.id = sessionId
+            this.waveMapId = event.waveMapId
+            this.state = WaveState.RUNNING
+            this.owner = event.playerRef.uuid
+        }
 
-        // Create repeating task (runs every 1 second)
+        // Initialize session in config
+        persistNewSession(session)
+
+        // Schedule the task and store it atomically
         val task = HytaleServer.SCHEDULED_EXECUTOR.scheduleWithFixedDelay({
-            val world = Universe.get().worlds.get(event.world.name)
-            world!!.execute {
-                try {
-                    LogUtil.debug("[WaveScheduler] WaveScheduler started for ${event.world.name}")
-                    waveEngine.processTick(sessionId, event)
-                } catch (e: Exception) {
-                    LogUtil.severe("[WaveScheduler] Error processing tick for session $sessionId: ${e.message}")
-                    // Stop the session on critical errors
-                    stopSession(sessionId)
-                }
-            }
+            runTick(sessionId, event)
         }, 0L, 1L, TimeUnit.SECONDS)
 
-        // Register with TaskRegistry for automatic cleanup on shutdown
-        waveEngine.plugin.taskRegistry.registerTask(task as ScheduledFuture<Void>)
-        LogUtil.debug("WaveScheduler started for session $sessionId")
-
-        // Track the task
         activeTasks[sessionId] = task
 
-        LogUtil.info("[WaveScheduler] Started wave task for session $sessionId")
+        // Register for Hytale's automatic cleanup
+        waveEngine.plugin.taskRegistry.registerTask(task as ScheduledFuture<Void>)
+
+        LogUtil.info("[WaveScheduler] Successfully started wave task for session $sessionId")
         return true
     }
 
-    private fun saveSession(session: ArenaSession) {
-        var config = configState?.get()
-        config?.sessions += session
-        configState?.save()
+    private fun runTick(sessionId: UUID, event: SessionStarted) {
+        val worldName = event.world.name
+        val world = Universe.get().worlds.get(worldName) ?: return
+
+        // Hytale World Thread Context
+        world.execute {
+            try {
+                val currentConfig = configState?.get() ?: return@execute
+                val session = currentConfig.sessions.find { it.id == sessionId }
+
+                if (session == null) {
+                    LogUtil.debug("[WaveScheduler] Session $sessionId no longer exists in config. Stopping task.")
+                    pauseSession(SessionPaused().apply { this.sessionId = sessionId})
+                    return@execute
+                }
+
+                // If session finished naturally, clean up the scheduler task
+                if (session.state.isInactive()) {
+                    LogUtil.debug("[WaveScheduler] Session $sessionId reached terminal state ${session.state}. Cleaning up task.")
+                    pauseSession(SessionPaused().apply { this.sessionId = sessionId})
+                    return@execute
+                }
+
+                LogUtil.debug("[WaveScheduler] Processing tick for $sessionId in world $worldName")
+                waveEngine.processTick(sessionId, currentConfig, event)
+
+            } catch (e: Exception) {
+                LogUtil.severe("[WaveScheduler] Critical error in tick for $sessionId: ${e.stackTraceToString()}")
+                pauseSession(SessionPaused().apply { this.sessionId = sessionId})
+            }
+        }
     }
 
-    /**
-     * Stops a wave session by cancelling its scheduled task.
-     */
-    fun stopSession(sessionId: UUID): Boolean {
-        val task = activeTasks.remove(sessionId)
+    private fun persistNewSession(session: ArenaSession) {
+        configState?.apply {
+            val config = get() ?: return@apply
+            // Thread-safe update to the session list
+            config.sessions = config.sessions + session
+            save()
+            LogUtil.debug("[WaveScheduler] Session ${session.id} persisted to config.")
+        }
+    }
+
+    fun pauseSession(event: SessionPaused): Boolean {
+        val task = activeTasks.remove(event.sessionId)
         return if (task != null) {
-            task.cancel(false) // Cancel but don't interrupt if running
-            LogUtil.info("[WaveScheduler] Stopped wave task for session $sessionId")
+            val cancelled = task.cancel(false)
+            LogUtil.info("[WaveScheduler] Task for ${event.sessionId} cancelled: $cancelled")
+
+            // Optional: Tell engine to clean up entities
+            waveEngine.stopSession(event.sessionId)
             true
         } else {
-            LogUtil.warn("[WaveScheduler] No active task found for session $sessionId")
+            LogUtil.debug("[WaveScheduler] No active task found for ${event.sessionId} during stop request.")
             false
         }
     }
 
-    /**
-     * Checks if a session has an active scheduled task.
-     */
-    fun isSessionActive(sessionId: UUID): Boolean {
-        return activeTasks.containsKey(sessionId)
-    }
-
-    /**
-     * Gets all currently active session IDs.
-     */
-    fun getActiveSessionIds(): Set<UUID> {
-        return activeTasks.keys.toSet()
-    }
-
-    /**
-     * Cancels all active tasks. Called during plugin shutdown.
-     * Note: TaskRegistry handles automatic cancellation, but this provides explicit control.
-     */
     fun shutdown() {
-        val sessionCount = activeTasks.size
-        activeTasks.values.forEach { task ->
-            task.cancel(false)
-        }
+        LogUtil.debug("[WaveScheduler] Shutting down. Cleaning up ${activeTasks.size} tasks.")
+        activeTasks.keys.forEach { pauseSession(SessionPaused().apply { this.sessionId = it}) }
         activeTasks.clear()
-
-        if (sessionCount > 0) {
-            LogUtil.info("[WaveScheduler] Shutdown completed, cancelled $sessionCount wave tasks")
-        }
     }
 
-    /**
-     * Gets the number of currently active tasks.
-     */
-    fun getActiveTaskCount(): Int {
-        return activeTasks.size
-    }
+    // Helper visibility methods
+    fun isSessionActive(sessionId: UUID) = activeTasks.containsKey(sessionId)
+    fun getActiveTaskCount() = activeTasks.size
 }

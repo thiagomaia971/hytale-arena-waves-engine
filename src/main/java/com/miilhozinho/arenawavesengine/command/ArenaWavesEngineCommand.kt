@@ -8,6 +8,7 @@ class ArenaWavesEngineCommand : AbstractAsyncCommand("arena-waves-engine", "Aren
     init {
         this.addAliases("awe")
         this.addSubCommand(StartCommand())
+        this.addSubCommand(PauseCommand())
     }
 
     override fun executeAsync(p0: CommandContext): CompletableFuture<Void?> {

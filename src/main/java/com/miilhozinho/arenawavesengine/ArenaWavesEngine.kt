@@ -7,6 +7,7 @@ import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.command.ArenaWavesEngineCommand
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.service.WaveScheduler
 import com.miilhozinho.arenawavesengine.util.ConfigLoader
@@ -49,6 +50,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         LogUtil.info("Setup")
         commandRegistry.registerCommand(ArenaWavesEngineCommand())
         HytaleServer.get().eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
+        HytaleServer.get().eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.pauseSession(event) })
         // entityStoreRegistry.registerSystem() // TODO: Implement system registration
     }
 
