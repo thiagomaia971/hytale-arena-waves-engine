@@ -1,9 +1,5 @@
 package com.miilhozinho.arenawavesengine.service
 
-import com.hypixel.hytale.component.Ref
-import com.hypixel.hytale.component.RemoveReason
-import com.hypixel.hytale.component.Store
-import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
@@ -13,13 +9,16 @@ import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
 import com.miilhozinho.arenawavesengine.util.LogUtil
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 class WaveEngine(public val plugin: ArenaWavesEngine) {
 
     private val sessionEntities = ConcurrentHashMap<UUID, MutableSet<NPCEntity>>()
+    private val allEntities = ConcurrentHashMap<UUID, NPCEntity>()
+    private val entitySession = ConcurrentHashMap<UUID, UUID>()
     private val spawnTracker = ConcurrentHashMap<UUID, MutableMap<String, Int>>()
     private val npcSpawn = NpcSpawn()
 
@@ -39,6 +38,7 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
         when (session.state) {
             WaveState.RUNNING      -> prepareWave(session, config)
             WaveState.SPAWNING     -> handleSpawning(session, config, event)
+            WaveState.WAITING_CLEAR -> checkWaveCleared(session, config, event)
             else -> LogUtil.warn("[WaveEngine] Unhandled state ${session.state} for $sessionId")
         }
     }
@@ -108,6 +108,32 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
         }
     }
 
+    private fun checkWaveCleared(
+        session: ArenaSession,
+        config: ArenaWavesEngineConfig,
+        event: SessionStarted
+    ) {
+        val enemies = sessionEntities[session.id] ?: return
+        if (enemies.size == 0){
+            markToNextWave(session, config, event)
+        }
+
+    }
+
+    private fun markToNextWave(
+        session: ArenaSession,
+        config: ArenaWavesEngineConfig,
+        event: SessionStarted
+    ) {
+        val mapDef = config.arenaMaps.find { it.id == session.waveMapId } ?: return
+        if (session.currentWave <= mapDef.waves.size) {
+            session.currentWave++
+            transitionTo(session, WaveState.RUNNING)
+        } else {
+            transitionTo(session, WaveState.COMPLETED)
+        }
+    }
+
     private fun isWaveFullySpawned(sessionId: UUID, waveDef: WaveDefinition): Boolean {
         val tracker = spawnTracker[sessionId] ?: return false
         val isComplete = waveDef.enemies.all { (tracker[it.enemyType] ?: 0) >= it.count }
@@ -135,6 +161,8 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
             )
 
             sessionEntities.getOrPut(session.id) { ConcurrentHashMap.newKeySet() }.add(spawnReturn.npc)
+            allEntities.put(npcUuidComponent.uuid, spawnReturn.npc)
+            entitySession.put(npcUuidComponent.uuid, session.id)
             LogUtil.debug("[WaveEngine] Entity ${npcUuidComponent.uuid} tracked for session ${session.id}")
         }
     }
@@ -147,12 +175,6 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
         LogUtil.info("[WaveEngine] Session ${session.id} state transition: $oldState -> $newState")
     }
 
-    fun onEntityDeath(sessionId: UUID, entity: NPCEntity) {
-        val removed = sessionEntities[sessionId]?.remove(entity) ?: false
-//        if (removed) {
-//            LogUtil.debug("[WaveEngine] Entity $entityId removed from tracking for session $sessionId. Remaining: ${getAliveEntityCount(sessionId)}")
-//        }
-    }
 
     fun getAliveEntityCount(sessionId: UUID) = sessionEntities[sessionId]?.size ?: 0
 
@@ -182,6 +204,8 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
             )
             try {
                 npc.setDespawning(true) // The "Clean" Hytale way to remove NPCs
+                allEntities.remove(npcUuidComponent.uuid)
+                entitySession.remove(npcUuidComponent.uuid)
                 LogUtil.debug("[WaveEngine] SetDespawning(true) for NPC: ${npc.roleName} - ${npcUuidComponent.uuid}")
             } catch (e: Exception) {
                 LogUtil.warn("[WaveEngine] Error despawning NPC ${npc.roleName} - ${npcUuidComponent.uuid}: ${e.message}")
@@ -189,6 +213,18 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
         }
 
         spawnTracker.remove(sessionId)
+    }
+
+    fun onEntityDeath(entityId: UUID) {
+        val sessionId = entitySession[entityId] ?: return
+        val npc = allEntities[entityId] ?: return
+        sessionEntities[sessionId]?.remove(npc) ?: false
+        allEntities.remove(entityId)
+        entitySession.remove(entityId)
+
+//        if (removed) {
+        LogUtil.debug("[WaveEngine] Entity $entityId removed from tracking for session $sessionId. Remaining: ${getAliveEntityCount(sessionId)}")
+//        }
     }
 }
 

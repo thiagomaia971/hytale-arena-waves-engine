@@ -2,9 +2,11 @@ package com.miilhozinho.arenawavesengine.service
 
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.universe.Universe
+import com.hypixel.hytale.server.npc.entities.NPCEntity
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
+import com.miilhozinho.arenawavesengine.events.EntityKilled
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.util.LogUtil
@@ -74,7 +76,6 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
                     return@execute
                 }
 
-                LogUtil.debug("[WaveScheduler] Processing tick for $sessionId in world $worldName")
                 waveEngine.processTick(sessionId, currentConfig, event)
 
             } catch (e: Exception) {
@@ -107,6 +108,10 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
             LogUtil.debug("[WaveScheduler] No active task found for ${event.sessionId} during stop request.")
             false
         }
+    }
+
+    fun onEntityDeath(event: EntityKilled){
+        waveEngine.onEntityDeath(event.entityId)
     }
 
     fun shutdown() {

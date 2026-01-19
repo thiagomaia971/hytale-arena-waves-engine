@@ -21,3 +21,7 @@ class SessionStarted : IEvent<Void> {
 class SessionPaused : IEvent<Void> {
     lateinit var sessionId: UUID
 }
+
+class EntityKilled : IEvent<Void> {
+    lateinit var entityId: UUID
+}
