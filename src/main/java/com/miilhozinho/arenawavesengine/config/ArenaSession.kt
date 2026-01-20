@@ -19,6 +19,7 @@ class ArenaSession {
     var aliveEntityIds: Set<UUID> = emptySet()
     var waveMapId: String = ""
     var startTime: Long = System.currentTimeMillis()
+    var waveClearTime: Long = 0L
 
     fun validate(): ArenaSession {
         return this
@@ -49,6 +50,10 @@ class ArenaSession {
                 KeyedCodec("State", STATE_CODEC),
                 { config, value, _ -> config!!.state = value!! },
                 { config, _ -> config!!.state }).add()
+            .append(
+                KeyedCodec("WaveClearTime", Codec.LONG),
+                { config, value, _ -> config!!.waveClearTime = value!! },
+                { config, _ -> config!!.waveClearTime }).add()
             .build()
     }
 }

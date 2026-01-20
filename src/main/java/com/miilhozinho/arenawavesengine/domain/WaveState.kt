@@ -11,6 +11,7 @@ enum class WaveState {
     RUNNING,
     SPAWNING,
     WAITING_CLEAR,
+    WAITING_INTERVAL,
     COMPLETED,
     STOPPED,
     FAILED;

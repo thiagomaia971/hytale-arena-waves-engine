@@ -7,6 +7,7 @@ import com.hypixel.hytale.component.Ref
 import com.hypixel.hytale.component.RemoveReason
 import com.hypixel.hytale.component.Store
 import com.hypixel.hytale.function.consumer.TriConsumer
+import com.hypixel.hytale.math.shape.Box
 import com.hypixel.hytale.math.util.MathUtil
 import com.hypixel.hytale.math.vector.Vector3d
 import com.hypixel.hytale.math.vector.Vector3f
@@ -38,6 +39,7 @@ import com.hypixel.hytale.server.spawning.ISpawnableWithModel
 import com.hypixel.hytale.server.spawning.SpawnTestResult
 import com.hypixel.hytale.server.spawning.SpawningContext
 import com.miilhozinho.arenawavesengine.domain.SpawnReturn
+import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.Random
 import java.util.concurrent.ThreadLocalRandom
 import java.util.logging.Level
@@ -48,8 +50,9 @@ class NpcSpawn {
     fun execute(
         context: CommandContext,
         store: Store<EntityStore?>,
-        ref: Ref<EntityStore?>,
-        playerRef: PlayerRef,
+        playerPosition: Vector3d,
+        playerHeadRotation: Vector3f,
+        playerBoundingBox: Box,
         world: World,
         npcBuilderInfo: BuilderInfo,
         count: Int = 1,
@@ -57,7 +60,7 @@ class NpcSpawn {
         flagsString: String? = null,
         speedArg: Double? = null,
         nonRandom: Boolean = false,
-        posOffset: String? = null,
+        posOffset: Vector3d? = null,
         headRotation: String? = null,
         bodyRotation: String? = null,
         randomRotationArg: Boolean = false,
@@ -75,23 +78,6 @@ class NpcSpawn {
         val npcPlugin = NPCPlugin.get()
         val roleInfo = npcBuilderInfo
         val roleIndex = roleInfo.getIndex()
-        val headRotationComponent =
-            store.getComponent<HeadRotation?>(ref, HeadRotation.getComponentType()) as HeadRotation?
-
-        checkNotNull(headRotationComponent)
-
-        val playerHeadRotation = headRotationComponent.getRotation()
-        val transformComponent =
-            store.getComponent<TransformComponent?>(ref, TransformComponent.getComponentType()) as TransformComponent?
-
-        checkNotNull(transformComponent)
-
-        val playerPosition = transformComponent.getPosition()
-        val boundingBoxComponent = store.getComponent<BoundingBox?>(ref, BoundingBox.getComponentType()) as BoundingBox?
-
-        checkNotNull(boundingBoxComponent)
-
-        val playerBoundingBox = boundingBoxComponent.getBoundingBox()
         val flags = if (flagsString != null) RoleDebugFlags.getFlags(
             flagsString.split(",".toRegex()).dropLastWhile { it.isEmpty() }
                 .toTypedArray()) else RoleDebugFlags.getPreset("none")
@@ -102,10 +88,6 @@ class NpcSpawn {
         }
 
         val random = (if (nonRandom) Random(0L) else ThreadLocalRandom.current()) as Random
-        val posOffset: Vector3d? = if (posOffset != null) this.parseVector3d(
-            context,
-            posOffset
-        ) else null
         val headRotation: Vector3f? = if (headRotation != null) this.parseVector3f(
             context,
             headRotation
@@ -189,7 +171,8 @@ class NpcSpawn {
 
                             val spawnPosition = spawningContext.newPosition()
                             if (posOffset != null) {
-                                spawnPosition.add(posOffset)
+                                val rotatedOffset = calculateRotateOffset(playerHeadRotation, posOffset)
+                                spawnPosition.add(rotatedOffset)
                             }
 
                             val npcPair = npcPlugin.spawnEntity(
@@ -230,7 +213,10 @@ class NpcSpawn {
                             }
 
                             if (posOffset != null) {
-                                position.add(posOffset)
+                                val rotatedOffset = calculateRotateOffset(playerHeadRotation, posOffset)
+                                position.add(rotatedOffset)
+                                LogUtil.debug("[NpcSpawn] Applied directional offset: Ahead ${posOffset.z}, Side ${posOffset.x}")
+//                                position.add(posOffset)
                             }
 
                             val npcPair =
@@ -341,6 +327,29 @@ class NpcSpawn {
             }
         }
         throw GeneralCommandException(Message.raw("Failed to spawn"))
+    }
+
+    private fun calculateRotateOffset(playerHeadRotation: Vector3f, posOffset: Vector3d): Vector3d {
+        val forward = Vector3d()
+        val right = Vector3d()
+        val up = Vector3d(0.0, 1.0, 0.0) // Global up
+
+        // PhysicsMath utility creates a unit vector pointing exactly where the player looks
+        PhysicsMath.vectorFromAngles(playerHeadRotation.getYaw(), 0.0f, forward)
+
+        // The "Right" vector is always 90 degrees clockwise from "Forward"
+        right.x = forward.z
+        right.y = 0.0
+        right.z = -forward.x
+
+        // 2. Scale the Directional Vectors by the posOffset values
+        // X = Left/Right, Y = Up/Down, Z = Forward/Backward
+        val rotatedOffset = Vector3d(0.0, 0.0, 0.0)
+
+        rotatedOffset.x = (forward.x * posOffset.z) + (right.x * posOffset.x)
+        rotatedOffset.y = posOffset.y // Up is usually just vertical
+        rotatedOffset.z = (forward.z * posOffset.z) + (right.z * posOffset.x)
+        return rotatedOffset
     }
 
 

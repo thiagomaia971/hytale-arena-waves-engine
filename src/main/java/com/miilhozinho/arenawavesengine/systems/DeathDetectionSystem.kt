@@ -5,20 +5,11 @@ import com.hypixel.hytale.component.CommandBuffer
 import com.hypixel.hytale.component.Store
 import com.hypixel.hytale.component.query.Query
 import com.hypixel.hytale.component.system.tick.EntityTickingSystem
-import com.hypixel.hytale.logger.HytaleLogger
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.core.modules.entity.damage.DeathComponent
-import com.hypixel.hytale.server.core.modules.entitystats.EntityStatMap
-import com.hypixel.hytale.server.core.modules.entitystats.EntityStatsModule
-import com.hypixel.hytale.server.core.modules.entitystats.asset.DefaultEntityStatTypes
-import com.hypixel.hytale.server.core.universe.Universe
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
-import com.hypixel.hytale.server.npc.entities.NPCEntity
 import com.miilhozinho.arenawavesengine.events.EntityKilled
-import com.miilhozinho.arenawavesengine.events.SessionStarted
-import com.miilhozinho.arenawavesengine.util.LogUtil
-import java.util.*
 
 class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
 

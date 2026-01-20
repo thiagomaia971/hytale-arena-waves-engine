@@ -9,7 +9,6 @@ import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
-import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
@@ -33,12 +32,11 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
             return
         }
 
-        LogUtil.debug("[WaveEngine] Processing tick for session $sessionId (State: ${session.state}, Wave: ${session.currentWave})")
-
         when (session.state) {
-            WaveState.RUNNING      -> prepareWave(session, config)
-            WaveState.SPAWNING     -> handleSpawning(session, config, event)
-            WaveState.WAITING_CLEAR -> checkWaveCleared(session, config, event)
+            WaveState.RUNNING         -> prepareWave(session, config)
+            WaveState.SPAWNING        -> handleSpawning(session, config, event)
+            WaveState.WAITING_CLEAR   -> checkWaveCleared(session, config, event)
+            WaveState.WAITING_INTERVAL -> checkIntervalElapsed(session, config, event)
             else -> LogUtil.warn("[WaveEngine] Unhandled state ${session.state} for $sessionId")
         }
     }
@@ -115,9 +113,29 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
     ) {
         val enemies = sessionEntities[session.id] ?: return
         if (enemies.size == 0){
+            LogUtil.debug("[WaveEngine] Wave ${session.currentWave} cleared for session ${session.id}. Starting interval wait.")
+            session.waveClearTime = System.currentTimeMillis()
+            transitionTo(session, WaveState.WAITING_INTERVAL)
+        }
+    }
+
+    private fun checkIntervalElapsed(
+        session: ArenaSession,
+        config: ArenaWavesEngineConfig,
+        event: SessionStarted
+    ) {
+        val mapDef = config.arenaMaps.find { it.id == session.waveMapId } ?: return
+        val waveDef = mapDef.waves.getOrNull(session.currentWave) ?: return
+
+        val elapsedTimeMs = System.currentTimeMillis() - session.waveClearTime
+        val requiredIntervalMs = waveDef.interval * 1000L
+
+        LogUtil.debug("[WaveEngine] Interval check: Elapsed=${elapsedTimeMs}ms, Required=${requiredIntervalMs}ms for session ${session.id}")
+
+        if (elapsedTimeMs >= requiredIntervalMs) {
+            LogUtil.debug("[WaveEngine] Interval elapsed for wave ${session.currentWave} in session ${session.id}. Starting next wave.")
             markToNextWave(session, config, event)
         }
-
     }
 
     private fun markToNextWave(
@@ -146,11 +164,29 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
             val spawnReturn = npcSpawn.execute(
                 event.context,
                 event.store,
-                event.ref,
-                event.playerRef,
+                event.playerPosition,
+                event.playerHeadRotation,
+                event.playerBoundingBox,
                 event.world,
                 NPC_ROLE.parse(enemy.enemyType, ParseResult()) as BuilderInfo,
-                1
+                1,
+                event.radius,
+                event.flagsString,
+                event.speedArg,
+                event.nonRandom,
+                event.posOffset,
+                event.headRotation,
+                event.bodyRotation,
+                event.randomRotationArg,
+                event.facingRotation,
+                event.flockSize,
+                event.frozen,
+                event.randomModel,
+                event.scaleArg,
+                event.bypassScaleLimitsArg,
+                event.test,
+                event.positionSet,
+                event.spawnOnGround
             )
 
             val npcUuidComponent = checkNotNull(

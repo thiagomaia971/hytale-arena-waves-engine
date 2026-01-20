@@ -95,18 +95,23 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
         }
     }
 
-    fun pauseSession(event: SessionPaused): Boolean {
-        val task = activeTasks.remove(event.sessionId)
-        return if (task != null) {
-            val cancelled = task.cancel(false)
-            LogUtil.info("[WaveScheduler] Task for ${event.sessionId} cancelled: $cancelled")
+    fun pauseSession(event: SessionPaused) {
+        var sessions = arrayOf<UUID>()
+        if (event.sessionId != null)
+            sessions += event.sessionId!!
+        else
+            sessions = activeTasks.keys.toTypedArray()
 
-            // Optional: Tell engine to clean up entities
-            waveEngine.stopSession(event.sessionId)
-            true
-        } else {
-            LogUtil.debug("[WaveScheduler] No active task found for ${event.sessionId} during stop request.")
-            false
+        for (sessionId in sessions) {
+            val task = activeTasks.remove(sessionId)
+            if (task != null) {
+                val cancelled = task.cancel(false)
+                LogUtil.info("[WaveScheduler] Task for ${sessionId} cancelled: $cancelled")
+
+                waveEngine.stopSession(sessionId)
+            } else {
+                LogUtil.debug("[WaveScheduler] No active task found for ${sessionId} during stop request.")
+            }
         }
     }
 
