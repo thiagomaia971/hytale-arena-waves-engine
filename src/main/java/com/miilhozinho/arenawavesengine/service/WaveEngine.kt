@@ -185,7 +185,7 @@ class WaveEngine(public val plugin: ArenaWavesEngine) {
                 event.scaleArg,
                 event.bypassScaleLimitsArg,
                 event.test,
-                event.positionSet,
+                event.spawnPosition,
                 event.spawnOnGround
             )
 

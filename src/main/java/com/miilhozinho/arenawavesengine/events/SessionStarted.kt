@@ -38,7 +38,7 @@ class SessionStarted : IEvent<Void> {
     var scaleArg: Float = 1.0F
     var bypassScaleLimitsArg: Boolean = false
     var test: Boolean = false
-    var positionSet: String? = null
+    var spawnPosition: Vector3d = Vector3d()
     var spawnOnGround: Boolean = false
 }
 

@@ -1,7 +1,6 @@
 package com.miilhozinho.arenawavesengine.config
 
 import com.hypixel.hytale.codec.Codec
-import com.hypixel.hytale.codec.ExtraInfo
 import com.hypixel.hytale.codec.KeyedCodec
 import com.hypixel.hytale.codec.builder.BuilderCodec
 import com.hypixel.hytale.codec.codecs.EnumCodec
@@ -13,8 +12,8 @@ import java.util.function.Supplier
 class ArenaSession {
     var id: UUID = UUID.randomUUID()
     var owner: UUID = UUID.randomUUID()
-    var center: Vector3d = Vector3d()
     var state: WaveState = WaveState.IDLE
+    var spawnPosition: Vector3d = Vector3d()
     var currentWave: Int = 0
     var aliveEntityIds: Set<UUID> = emptySet()
     var waveMapId: String = ""
@@ -43,13 +42,13 @@ class ArenaSession {
                 { config, value, _ -> config!!.owner = value!! },
                 { config, _ -> config!!.owner }).add()
             .append(
-                KeyedCodec("Center", Vector3d.CODEC),
-                { config, value, _ -> config!!.center = value!! },
-                { config, _ -> config!!.center }).add()
-            .append(
                 KeyedCodec("State", STATE_CODEC),
                 { config, value, _ -> config!!.state = value!! },
                 { config, _ -> config!!.state }).add()
+            .append(
+                KeyedCodec("SpawnPosition", Vector3d.CODEC),
+                { config, value, _ -> config!!.spawnPosition = value!! },
+                { config, _ -> config!!.spawnPosition }).add()
             .append(
                 KeyedCodec("WaveClearTime", Codec.LONG),
                 { config, value, _ -> config!!.waveClearTime = value!! },

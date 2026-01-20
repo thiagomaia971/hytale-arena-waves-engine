@@ -3,6 +3,7 @@ package com.miilhozinho.arenawavesengine.command
 import com.hypixel.hytale.component.*
 import com.hypixel.hytale.math.shape.Box
 import com.hypixel.hytale.math.vector.Vector3d
+import com.hypixel.hytale.math.vector.Vector3f
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg
@@ -11,11 +12,11 @@ import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayer
 import com.hypixel.hytale.server.core.modules.entity.component.BoundingBox
 import com.hypixel.hytale.server.core.modules.entity.component.HeadRotation
 import com.hypixel.hytale.server.core.modules.entity.component.TransformComponent
+import com.hypixel.hytale.server.core.modules.physics.util.PhysicsMath
 import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.miilhozinho.arenawavesengine.events.SessionStarted
-import java.util.UUID
 
 class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
     private val waveMapIdArg: RequiredArg<String>
@@ -33,6 +34,11 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
         val playerHeadRotation = getPlayerHeadRotation(store, ref)
         val playerPosition = getPlayerPosition(store, ref)
         val playerBoundingBox = getPlayerBoundingBox(store, ref)
+        val spawnPosition = calculateTargetPosition(
+            playerPosition,
+            playerHeadRotation,
+            Vector3d(0.0, 0.0, 5.0)
+        )
 
         val sessionStartedEvent = SessionStarted().apply {
             this.waveMapId = waveMapIdArg.get(context);
@@ -45,7 +51,7 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
             this.playerRef = playerRef;
             this.world = world;
 
-            this.posOffset = Vector3d(0.0, 0.00, 5.00)
+            this.spawnPosition = spawnPosition
         }
         HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
     }
@@ -80,5 +86,37 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
         return boundingBoxComponent.getBoundingBox()
     }
 
+    private fun calculateTargetPosition(
+        playerPosition: Vector3d,
+        playerHeadRotation: Vector3f,
+        posOffset: Vector3d
+    ): Vector3d {
+        val forward = Vector3d()
+        val right = Vector3d()
+
+        // 1. Get the direction the player is facing
+        PhysicsMath.vectorFromAngles(playerHeadRotation.getYaw(), 0.0f, forward)
+
+        // 2. Calculate the "Right" vector (Perpendicular to forward)
+        // If forward is (x, 0, z), right is (z, 0, -x)
+        right.x = forward.z
+        right.y = 0.0
+        right.z = forward.x
+
+        // 3. Scale directions by your offset values
+        // posOffset.z = Ahead/Back
+        // posOffset.x = Right/Left
+        // posOffset.y = Up/Down
+        val worldOffsetX = (forward.x * posOffset.z) + (right.x * posOffset.x)
+        val worldOffsetY = posOffset.y
+        val worldOffsetZ = (forward.z * posOffset.z) + (right.z * posOffset.x)
+
+        // 4. ADD the offset to the current position
+        return Vector3d(
+            playerPosition.x + worldOffsetX,
+            playerPosition.y + worldOffsetY,
+            playerPosition.z + worldOffsetZ
+        )
+    }
 }
 

@@ -71,7 +71,7 @@ class NpcSpawn {
         scaleArg: Float = 1.0F,
         bypassScaleLimitsArg: Boolean = false,
         test: Boolean = false,
-        positionSet: String? = null,
+        positionSet: Vector3d? = null,
         spawnOnGround: Boolean = false,
     ): SpawnReturn {
 
@@ -171,8 +171,7 @@ class NpcSpawn {
 
                             val spawnPosition = spawningContext.newPosition()
                             if (posOffset != null) {
-                                val rotatedOffset = calculateRotateOffset(playerHeadRotation, posOffset)
-                                spawnPosition.add(rotatedOffset)
+                                spawnPosition.add(posOffset)
                             }
 
                             val npcPair = npcPlugin.spawnEntity(
@@ -200,11 +199,7 @@ class NpcSpawn {
                         } else {
                             val position: Vector3d?
                             if (positionSet != null) {
-                                position = this.parseVector3d(context, positionSet)
-                                if (position == null) {
-                                    throw GeneralCommandException(Message.raw("Position null"))
-                                }
-
+                                position = positionSet
                                 position.y -= model!!.getBoundingBox()!!.min.y
                             } else {
                                 position = Vector3d(playerPosition)
@@ -213,10 +208,7 @@ class NpcSpawn {
                             }
 
                             if (posOffset != null) {
-                                val rotatedOffset = calculateRotateOffset(playerHeadRotation, posOffset)
-                                position.add(rotatedOffset)
-                                LogUtil.debug("[NpcSpawn] Applied directional offset: Ahead ${posOffset.z}, Side ${posOffset.x}")
-//                                position.add(posOffset)
+                                position.add(posOffset)
                             }
 
                             val npcPair =
@@ -327,29 +319,6 @@ class NpcSpawn {
             }
         }
         throw GeneralCommandException(Message.raw("Failed to spawn"))
-    }
-
-    private fun calculateRotateOffset(playerHeadRotation: Vector3f, posOffset: Vector3d): Vector3d {
-        val forward = Vector3d()
-        val right = Vector3d()
-        val up = Vector3d(0.0, 1.0, 0.0) // Global up
-
-        // PhysicsMath utility creates a unit vector pointing exactly where the player looks
-        PhysicsMath.vectorFromAngles(playerHeadRotation.getYaw(), 0.0f, forward)
-
-        // The "Right" vector is always 90 degrees clockwise from "Forward"
-        right.x = forward.z
-        right.y = 0.0
-        right.z = -forward.x
-
-        // 2. Scale the Directional Vectors by the posOffset values
-        // X = Left/Right, Y = Up/Down, Z = Forward/Backward
-        val rotatedOffset = Vector3d(0.0, 0.0, 0.0)
-
-        rotatedOffset.x = (forward.x * posOffset.z) + (right.x * posOffset.x)
-        rotatedOffset.y = posOffset.y // Up is usually just vertical
-        rotatedOffset.z = (forward.z * posOffset.z) + (right.z * posOffset.x)
-        return rotatedOffset
     }
 
 

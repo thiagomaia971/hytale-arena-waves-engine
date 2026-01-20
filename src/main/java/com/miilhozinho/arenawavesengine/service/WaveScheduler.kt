@@ -2,19 +2,17 @@ package com.miilhozinho.arenawavesengine.service
 
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.universe.Universe
-import com.hypixel.hytale.server.npc.entities.NPCEntity
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.configState
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.EntityKilled
-import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionPaused
+import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
-import kotlin.apply
 
 class WaveScheduler(private val waveEngine: WaveEngine) {
 
@@ -34,6 +32,7 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
             this.waveMapId = event.waveMapId
             this.state = WaveState.RUNNING
             this.owner = event.playerRef.uuid
+            this.spawnPosition = event.spawnPosition
         }
 
         // Initialize session in config
