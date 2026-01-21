@@ -1,18 +1,18 @@
 package com.miilhozinho.arenawavesengine
 
-import com.hypixel.hytale.protocol.Vector3d
+import com.hypixel.hytale.event.EventRegistration
 import com.hypixel.hytale.server.core.HytaleServer
-import com.hypixel.hytale.server.core.modules.entity.component.BoundingBox
+import com.hypixel.hytale.server.core.command.system.CommandRegistration
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
 import com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent
-import com.hypixel.hytale.server.core.universe.world.events.WorldEvent
 import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.command.ArenaWavesEngineCommand
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
+import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.EntityKilled
-import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionPaused
+import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.service.WaveScheduler
 import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
@@ -23,6 +23,12 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     // Wave services
     lateinit var waveEngine: WaveEngine
     lateinit var waveScheduler: WaveScheduler
+    var commandStartEventRegistration: CommandRegistration? = null
+    var sessionsStartedEventRegistration: EventRegistration<Void, SessionStarted>? = null
+    var sessionsPausedEventRegistration: EventRegistration<Void, SessionPaused>? = null
+    var entityKilledEventRegistration: EventRegistration<Void, EntityKilled>? = null
+    var startWorldEventRegistration: EventRegistration<String, StartWorldEvent>? = null
+
 
     init {
         try {
@@ -55,19 +61,15 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
         LogUtil.info("Setup")
-        commandRegistry.registerCommand(ArenaWavesEngineCommand())
+        commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand())
         entityStoreRegistry.registerSystem(DeathDetectionSystem())
 
-        HytaleServer.get().eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
-        HytaleServer.get().eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.pauseSession(event) })
-        HytaleServer.get().eventBus.registerGlobal(EntityKilled::class.java, { event -> waveScheduler.onEntityDeath(event) })
+        val eventBus = HytaleServer.get().eventBus
+        sessionsStartedEventRegistration = eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
+        sessionsPausedEventRegistration = eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.pauseSession(event) })
+        entityKilledEventRegistration = eventBus.registerGlobal(EntityKilled::class.java, { event -> waveScheduler.onEntityDeath(event) })
 
-        eventRegistry.registerGlobal(StartWorldEvent::class.java, { event -> loadMapsOnStartupServer(event)})
-
-    //        HytaleServer.get().eventBus.register(com.hypixel.hytale.server.npc.blackboard.view.event.entity.EntityEventType::class.java, { event -> System.out.println(event.toString()) })
-    //        HytaleServer.get().eventBus.register(EntityEventType::class.java, {event -> System.out.println("Entity event received: $event") })
-//        entityStoreRegistry.registerEntityEventType()
-
+        startWorldEventRegistration = eventRegistry.registerGlobal(StartWorldEvent::class.java, { event -> loadMapsOnStartupServer(event)})
     }
 
 
@@ -76,7 +78,11 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     }
 
     fun loadMapsOnStartupServer(event: StartWorldEvent) {
-        val allSesionsRunning = config.sessions.filter { it.world == event.world.name }
+        val allSesionsRunning = config.sessions.filter { it.world == event.world.name &&
+                it.state != WaveState.STOPPED &&
+                it.state != WaveState.COMPLETED &&
+                it.state != WaveState.FAILED
+        }
 
         for (session in allSesionsRunning) {
             val sessionStartedEvent = SessionStarted().apply {
@@ -90,15 +96,16 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
                 this.spawnPosition = session.spawnPosition
             }
             waveScheduler.startTask(session.id, sessionStartedEvent)
-//            HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
         }
     }
 
     override fun shutdown() {
-        // Clean shutdown of wave services
-        if (::waveScheduler.isInitialized) {
-            waveScheduler.shutdown()
-        }
+        waveScheduler.shutdown()
+        commandStartEventRegistration?.unregister()
+        sessionsStartedEventRegistration?.unregister()
+        sessionsPausedEventRegistration?.unregister()
+        entityKilledEventRegistration?.unregister()
+        startWorldEventRegistration?.unregister()
 
         LogUtil.info("[ArenaWavesEngine] Shutdown complete")
     }

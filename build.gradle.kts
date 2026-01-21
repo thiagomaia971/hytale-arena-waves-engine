@@ -1,3 +1,4 @@
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 import org.gradle.kotlin.dsl.compileOnly
 
 plugins {
@@ -86,8 +87,18 @@ tasks {
         
         // Minimize JAR size (removes unused classes)
         minimize()
+        doLast {
+            copy {
+                from(archiveFile)
+                into("run/mods")
+            }
+            copy {
+                from("main/builtin/mdevtools-1.0.4.jar")
+                into("builtin")
+            }
+        }
     }
-    
+
     // Configure tests
     test {
         useJUnitPlatform()

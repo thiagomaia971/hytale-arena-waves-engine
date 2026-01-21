@@ -14,8 +14,6 @@
   "Main": "com.miilhozinho.arenawavesengine.ArenaWavesEngine",
   "ServerVersion": "*",
   "Dependencies": {
-    "Hytale:EntityModule": "*",
-    "Hytale:AssetModule": "*"
   },
   "OptionalDependencies": {},
   "DisabledByDefault": false,

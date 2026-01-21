@@ -20,7 +20,7 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
 
     fun startSession(event: SessionStarted): Boolean {
         val sessionId = UUID.randomUUID().toString() // Ensure unique ID for this instance
-        LogUtil.debug("[WaveScheduler] Attempting to start session: $sessionId for map: ${event.waveMapId}")
+        LogUtil.debug("[WaveScheduler] Attempting to start session++++++++++++: $sessionId for map: ${event.waveMapId}")
 
         if (activeTasks.containsKey(sessionId)) {
             LogUtil.warn("[WaveScheduler] Session $sessionId is already being tracked.")
