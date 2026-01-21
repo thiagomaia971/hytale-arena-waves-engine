@@ -2,10 +2,10 @@ package com.miilhozinho.arenawavesengine.util
 
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
 import java.nio.file.Files
 import java.nio.file.Path
-import kotlin.io.path.exists
 import kotlin.jvm.java
 
 class ConfigLoader(
@@ -14,17 +14,30 @@ class ConfigLoader(
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
     fun createOrLoad(fileName: String): ArenaWavesEngineConfig {
-        Files.createDirectories(dataDir)
-        val file = dataDir.resolve("$fileName.json")
-        if (file.exists()){
-            LogUtil.info("Loaded default config at: $file")
-            return load(file)
+        val path = dataDir.resolve("$fileName.json")
+
+        // 1. Define the Config wrapper
+        val hytaleConfig = Config<ArenaWavesEngineConfig>(
+            dataDir,
+            fileName,
+            ArenaWavesEngineConfig.CODEC
+        )
+
+        // 2. Check if the file exists before loading
+        val exists = Files.exists(path)
+
+        // 3. Load the data
+        hytaleConfig.load()
+
+        // 4. If it didn't exist, save the defaults to disk now
+        if (!exists) {
+            hytaleConfig.save()
+            LogUtil.info("Created new default configuration file at: $path")
+        } else {
+            LogUtil.info("Loaded existing configuration from: $path")
         }
 
-        val defaults = ArenaWavesEngineConfig()
-        Files.writeString(file, gson.toJson(defaults))
-        LogUtil.info("Created default config at: $file")
-        return defaults
+        return hytaleConfig.get()
     }
 
     private fun load(file: Path): ArenaWavesEngineConfig {

@@ -48,7 +48,6 @@ import kotlin.math.floor
 
 class NpcSpawn {
     fun execute(
-        context: CommandContext,
         store: Store<EntityStore?>,
         playerPosition: Vector3d,
         playerHeadRotation: Vector3f,
@@ -61,8 +60,8 @@ class NpcSpawn {
         speedArg: Double? = null,
         nonRandom: Boolean = false,
         posOffset: Vector3d? = null,
-        headRotation: String? = null,
-        bodyRotation: String? = null,
+        headRotation: Vector3f? = null,
+        bodyRotation: Vector3f? = null,
         randomRotationArg: Boolean = false,
         facingRotation: Boolean = false,
         flockSize: Int = 1,
@@ -88,14 +87,10 @@ class NpcSpawn {
         }
 
         val random = (if (nonRandom) Random(0L) else ThreadLocalRandom.current()) as Random
-        val headRotation: Vector3f? = if (headRotation != null) this.parseVector3f(
-            context,
-            headRotation
-        ) else null
         var randomRotation = false
         var rotation: Vector3f? = playerHeadRotation
         if (bodyRotation != null) {
-            rotation = this.parseVector3f(context, bodyRotation)
+            rotation = bodyRotation
         } else if (randomRotationArg) {
             randomRotation = true
         } else if (facingRotation) {

@@ -34,7 +34,7 @@ class PauseCommand : AbstractPlayerCommand("pause", "Pause the arena wave") {
     ) {
 
         val event = SessionPaused().apply {
-            this.sessionId = sessionIdArg.get(context)
+            this.sessionId = sessionIdArg.get(context)?.toString() ?: null
             this.pauseAll = pauseAllArg.get(context)
         }
 

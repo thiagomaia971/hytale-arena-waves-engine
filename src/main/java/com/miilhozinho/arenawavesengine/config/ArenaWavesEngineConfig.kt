@@ -4,7 +4,12 @@ import com.hypixel.hytale.codec.Codec
 import com.hypixel.hytale.codec.ExtraInfo
 import com.hypixel.hytale.codec.KeyedCodec
 import com.hypixel.hytale.codec.builder.BuilderCodec
+import com.hypixel.hytale.codec.codecs.EnumCodec
 import com.hypixel.hytale.codec.codecs.array.ArrayCodec
+import com.hypixel.hytale.codec.codecs.map.MapCodec
+import com.miilhozinho.arenawavesengine.domain.WaveState
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Supplier
 
 /**
@@ -34,18 +39,29 @@ class ArenaWavesEngineConfig {
     var debugLoggingEnabled: Boolean = true
         private set
 
+    var entityToSessionMap: ConcurrentHashMap<String, String> = ConcurrentHashMap()
+        private set
+
     // Domain data fields (maintain existing interface)
     var arenaMaps: List<ArenaMapDefinition> = listOf(
         ArenaMapDefinition().apply {
             id = "default_arena_map"
             name = "Default arena map"
             description = "Any description for default arena map"
+            entityToSessionMap = ConcurrentHashMap()
             waves = listOf(
                 WaveDefinition().apply {
-                    interval = 30
+                    interval = 10
                     enemies = listOf(
                         EnemyDefinition().apply { enemyType = "Skeleton"; count = 3; },
                         EnemyDefinition().apply { enemyType = "Skeleton_Archer"; count = 1; },
+                    )
+                },
+                WaveDefinition().apply {
+                    interval = 1
+                    enemies = listOf(
+                        EnemyDefinition().apply { enemyType = "Skeleton"; count = 15; },
+                        EnemyDefinition().apply { enemyType = "Skeleton_Archer"; count = 5; },
                     )
                 }
             )
@@ -74,6 +90,11 @@ class ArenaWavesEngineConfig {
     }
 
     companion object {
+        val ENTITY_MAP_CODEC = MapCodec<String, ConcurrentHashMap<String, String>>(
+            Codec.STRING,
+            { ConcurrentHashMap<String, String>() },
+            false // false = Modifiable so we can clear/putAll
+        )
         val ARENA_MAP_DEF_ARRAY_CODEC = ArrayCodec<ArenaMapDefinition>(
             ArenaMapDefinition.CODEC,
             { size -> arrayOfNulls<ArenaMapDefinition>(size) }
@@ -143,6 +164,10 @@ class ArenaWavesEngineConfig {
                     config!!.debugLoggingEnabled = value!!
                 },
                 { config: ArenaWavesEngineConfig?, extraInfo: ExtraInfo? -> config!!.debugLoggingEnabled }).add()
+            .append(
+                KeyedCodec("EntityToSessionMap", ENTITY_MAP_CODEC),
+                { config, value, _ -> config!!.entityToSessionMap.clear(); if (value != null) config.entityToSessionMap.putAll(value) },
+                { config, _ -> config!!.entityToSessionMap } ).add()
             .append(
                 KeyedCodec("ArenaMaps", ARENA_MAP_DEF_ARRAY_CODEC),
                 { config, value, _ -> config!!.arenaMaps = value.toList() },

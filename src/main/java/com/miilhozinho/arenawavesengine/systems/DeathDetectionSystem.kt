@@ -28,7 +28,7 @@ class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
                 if (uuidComponent != null) {
                     val entityUuid = uuidComponent.getUuid()
                     val event = EntityKilled().apply {
-                        this.entityId = entityUuid
+                        this.entityId = entityUuid.toString()
                     }
                     HytaleServer.get().eventBus.dispatchFor(EntityKilled::class.java).dispatch(event)
 

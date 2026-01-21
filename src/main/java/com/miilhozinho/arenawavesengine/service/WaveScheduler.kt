@@ -16,10 +16,10 @@ import java.util.concurrent.TimeUnit
 
 class WaveScheduler(private val waveEngine: WaveEngine) {
 
-    private val activeTasks = ConcurrentHashMap<UUID, ScheduledFuture<*>>()
+    private val activeTasks = ConcurrentHashMap<String, ScheduledFuture<*>>()
 
     fun startSession(event: SessionStarted): Boolean {
-        val sessionId = UUID.randomUUID() // Ensure unique ID for this instance
+        val sessionId = UUID.randomUUID().toString() // Ensure unique ID for this instance
         LogUtil.debug("[WaveScheduler] Attempting to start session: $sessionId for map: ${event.waveMapId}")
 
         if (activeTasks.containsKey(sessionId)) {
@@ -31,13 +31,19 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
             this.id = sessionId
             this.waveMapId = event.waveMapId
             this.state = WaveState.RUNNING
-            this.owner = event.playerRef.uuid
+            this.owner = event.playerId
             this.spawnPosition = event.spawnPosition
+            this.world = event.world.name
         }
 
         // Initialize session in config
         persistNewSession(session)
 
+        startTask(sessionId, event)
+        return true
+    }
+
+    fun startTask(sessionId: String, event: SessionStarted) {
         // Schedule the task and store it atomically
         val task = HytaleServer.SCHEDULED_EXECUTOR.scheduleWithFixedDelay({
             runTick(sessionId, event)
@@ -49,10 +55,9 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
         waveEngine.plugin.taskRegistry.registerTask(task as ScheduledFuture<Void>)
 
         LogUtil.info("[WaveScheduler] Successfully started wave task for session $sessionId")
-        return true
     }
 
-    private fun runTick(sessionId: UUID, event: SessionStarted) {
+    private fun runTick(sessionId: String, event: SessionStarted) {
         val worldName = event.world.name
         val world = Universe.get().worlds.get(worldName) ?: return
 
@@ -95,7 +100,7 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
     }
 
     fun pauseSession(event: SessionPaused) {
-        var sessions = arrayOf<UUID>()
+        var sessions = arrayOf<String>()
         if (event.sessionId != null)
             sessions += event.sessionId!!
         else
@@ -125,6 +130,6 @@ class WaveScheduler(private val waveEngine: WaveEngine) {
     }
 
     // Helper visibility methods
-    fun isSessionActive(sessionId: UUID) = activeTasks.containsKey(sessionId)
+    fun isSessionActive(sessionId: String) = activeTasks.containsKey(sessionId)
     fun getActiveTaskCount() = activeTasks.size
 }

@@ -14,13 +14,11 @@ import java.util.UUID
 
 class SessionStarted : IEvent<Void> {
     lateinit var waveMapId: String
-    lateinit var context: CommandContext
     lateinit var store: Store<EntityStore?>
-    lateinit var ref: Ref<EntityStore?>
+    lateinit var playerId: String
     lateinit var playerPosition: Vector3d
     lateinit var playerHeadRotation: Vector3f
     lateinit var playerBoundingBox: Box
-    lateinit var playerRef: PlayerRef
     lateinit var world: World
 
     var radius: Double = 8.0
@@ -28,8 +26,8 @@ class SessionStarted : IEvent<Void> {
     var speedArg: Double? = null
     var nonRandom: Boolean = false
     var posOffset: Vector3d? = null
-    var headRotation: String? = null
-    var bodyRotation: String? = null
+    var headRotation: Vector3f? = null
+    var bodyRotation: Vector3f? = null
     var randomRotationArg: Boolean = false
     var facingRotation: Boolean = false
     var flockSize: Int = 1
@@ -43,10 +41,10 @@ class SessionStarted : IEvent<Void> {
 }
 
 class SessionPaused : IEvent<Void> {
-    var sessionId: UUID? = null
+    var sessionId: String? = null
     var pauseAll: Boolean = false
 }
 
 class EntityKilled : IEvent<Void> {
-    lateinit var entityId: UUID
+    lateinit var entityId: String
 }

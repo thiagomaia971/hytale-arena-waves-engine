@@ -1,9 +1,12 @@
 package com.miilhozinho.arenawavesengine
 
-import com.hypixel.hytale.component.event.EntityEventType
+import com.hypixel.hytale.protocol.Vector3d
 import com.hypixel.hytale.server.core.HytaleServer
+import com.hypixel.hytale.server.core.modules.entity.component.BoundingBox
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
+import com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent
+import com.hypixel.hytale.server.core.universe.world.events.WorldEvent
 import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.command.ArenaWavesEngineCommand
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
@@ -35,6 +38,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         }
     }
 
+
     override fun setup() {
         super.setup()
         config = configState?.get()!!
@@ -58,14 +62,36 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         HytaleServer.get().eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.pauseSession(event) })
         HytaleServer.get().eventBus.registerGlobal(EntityKilled::class.java, { event -> waveScheduler.onEntityDeath(event) })
 
-//        HytaleServer.get().eventBus.register(com.hypixel.hytale.server.npc.blackboard.view.event.entity.EntityEventType::class.java, { event -> System.out.println(event.toString()) })
+        eventRegistry.registerGlobal(StartWorldEvent::class.java, { event -> loadMapsOnStartupServer(event)})
+
+    //        HytaleServer.get().eventBus.register(com.hypixel.hytale.server.npc.blackboard.view.event.entity.EntityEventType::class.java, { event -> System.out.println(event.toString()) })
     //        HytaleServer.get().eventBus.register(EntityEventType::class.java, {event -> System.out.println("Entity event received: $event") })
 //        entityStoreRegistry.registerEntityEventType()
 
     }
 
+
     override fun start() {
         LogUtil.info("Start")
+    }
+
+    fun loadMapsOnStartupServer(event: StartWorldEvent) {
+        val allSesionsRunning = config.sessions.filter { it.world == event.world.name }
+
+        for (session in allSesionsRunning) {
+            val sessionStartedEvent = SessionStarted().apply {
+                this.waveMapId = session.waveMapId
+                this.store = event.world.entityStore.store;
+                this.playerPosition = com.hypixel.hytale.math.vector.Vector3d(0.00, 0.00, 0.00);
+                this.playerHeadRotation = com.hypixel.hytale.math.vector.Vector3f(0f, 0f, 0f)
+                this.playerBoundingBox = com.hypixel.hytale.math.shape.Box()
+                this.world = event.world;
+
+                this.spawnPosition = session.spawnPosition
+            }
+            waveScheduler.startTask(session.id, sessionStartedEvent)
+//            HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
+        }
     }
 
     override fun shutdown() {

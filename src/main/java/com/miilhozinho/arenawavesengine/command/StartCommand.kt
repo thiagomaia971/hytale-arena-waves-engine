@@ -42,14 +42,12 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
 
         val sessionStartedEvent = SessionStarted().apply {
             this.waveMapId = waveMapIdArg.get(context);
-            this.context = context;
             this.store = store;
-            this.ref = ref;
             this.playerPosition = playerPosition
             this.playerHeadRotation = playerHeadRotation
             this.playerBoundingBox = playerBoundingBox
-            this.playerRef = playerRef;
             this.world = world;
+            this.playerId = playerRef.uuid.toString();
 
             this.spawnPosition = spawnPosition
         }
