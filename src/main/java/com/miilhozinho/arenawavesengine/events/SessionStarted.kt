@@ -49,3 +49,9 @@ class SessionPaused : IEvent<Void> {
 class EntityKilled : IEvent<Void> {
     lateinit var entityId: String
 }
+
+class DamageDealt : IEvent<Void> {
+    lateinit var victimId: String
+    lateinit var attackerId: String
+    var damage: Float = 0.0f
+}

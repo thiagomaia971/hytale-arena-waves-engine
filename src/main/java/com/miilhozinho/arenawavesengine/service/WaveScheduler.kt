@@ -4,6 +4,7 @@ import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.universe.Universe
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
+import com.miilhozinho.arenawavesengine.events.DamageDealt
 import com.miilhozinho.arenawavesengine.events.EntityKilled
 import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.events.SessionStarted
@@ -115,6 +116,10 @@ class WaveScheduler(
 
     fun onEntityDeath(event: EntityKilled){
         waveEngine.onEntityDeath(event.entityId)
+    }
+
+    fun onDamageDealt(event: DamageDealt) {
+        waveEngine.onDamageDealt(event.victimId, event.attackerId, event.damage)
     }
 
     fun shutdown() {

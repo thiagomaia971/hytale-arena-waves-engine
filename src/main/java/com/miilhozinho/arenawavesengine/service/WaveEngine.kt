@@ -6,17 +6,12 @@ import com.hypixel.hytale.server.core.universe.Universe
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
 import com.hypixel.hytale.server.npc.entities.NPCEntity
-import com.miilhozinho.arenawavesengine.ArenaWavesEngine
-import com.miilhozinho.arenawavesengine.config.ArenaMapDefinition
-import com.miilhozinho.arenawavesengine.config.ArenaSession
-import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
-import com.miilhozinho.arenawavesengine.config.EnemyDefinition
-import com.miilhozinho.arenawavesengine.config.WaveDefinition
+import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.util.LogUtil
-import java.util.UUID
+import java.util.*
 
 class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
@@ -34,6 +29,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
             WaveState.SPAWNING        -> handleSpawning(session, arenaMapDefinition, event)
             WaveState.WAITING_CLEAR   -> checkWaveCleared(session)
             WaveState.WAITING_INTERVAL -> checkIntervalElapsed(session, arenaMapDefinition)
+            WaveState.COMPLETED        -> checkCompleted(session)
             else -> LogUtil.warn("[WaveEngine] Unhandled state ${session.state} for $sessionId")
         }
     }
@@ -53,6 +49,8 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         LogUtil.debug("[WaveEngine] Preparing wave ${session.currentWave} for session ${session.id}")
         session.currentWaveSpawnProgress.clear()
+        val waveData = session.wavesData.getOrPut(session.currentWave) { WaveCurrentData() }
+        waveData.startTime = System.currentTimeMillis()
         transitionTo(session, WaveState.SPAWNING)
     }
 
@@ -69,7 +67,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         val maxConcurrent = arenaWavesEngineRepository.get().maxConcurrentMobsPerSession
         val availableSlots = maxConcurrent - aliveCount
 
-        LogUtil.debug("[WaveEngine] Spawning check: Alive=$aliveCount, Max=$maxConcurrent, Available=$availableSlots")
+        LogUtil.debug("[WaveEngine] Spawning check for wave ${session.currentWave}: Alive=$aliveCount, Max=$maxConcurrent, Available=$availableSlots")
 
         if (availableSlots <= 0) {
             LogUtil.debug("[WaveEngine] Spawn throttled: Session ${session.id} at max capacity")
@@ -108,9 +106,18 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
     private fun checkWaveCleared(
         session: ArenaSession
     ) {
-        if (session.activeEntities.size == 0){
+        if (session.activeEntities.isEmpty()) {
+            val now = System.currentTimeMillis()
             LogUtil.debug("[WaveEngine] Wave ${session.currentWave} cleared for session ${session.id}. Starting interval wait.")
-            session.waveClearTime = System.currentTimeMillis()
+
+            val waveData = session.wavesData[session.currentWave]
+            if (waveData != null) {
+                waveData.clearTime = now
+                val durationSeconds = ((now - waveData.startTime) / 1000).toInt()
+                waveData.duration = durationSeconds
+                LogUtil.info("[WaveEngine] Wave ${session.currentWave} cleared in $durationSeconds seconds.")
+            }
+
             transitionTo(session, WaveState.WAITING_INTERVAL)
         }
     }
@@ -120,14 +127,16 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         arenaMapDefinition: ArenaMapDefinition?
     ) {
         if (arenaMapDefinition == null) {
-            LogUtil.severe("[WaveEngine] Failed to spawn wave: Map ${session.waveMapId} not found")
+            LogUtil.severe("[WaveEngine] Failed to check interval: Map ${session.waveMapId} not found")
             transitionTo(session, WaveState.FAILED)
             return
         }
 
         val waveDef = arenaMapDefinition.waves.getOrNull(session.currentWave) ?: return
 
-        val elapsedTimeMs = System.currentTimeMillis() - session.waveClearTime
+        val waveData = session.wavesData[session.currentWave]
+        val waveClearTime = waveData?.clearTime ?: 0L
+        val elapsedTimeMs = System.currentTimeMillis() - waveClearTime
         val requiredIntervalMs = waveDef.interval * 1000L
 
         LogUtil.debug("[WaveEngine] Interval check: Elapsed=${elapsedTimeMs}ms, Required=${requiredIntervalMs}ms for session ${session.id}")
@@ -154,6 +163,10 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         } else {
             transitionTo(session, WaveState.COMPLETED)
         }
+    }
+
+    private fun checkCompleted(session: ArenaSession) {
+        session.currentWaveSpawnProgress.clear()
     }
 
     private fun isWaveFullySpawned(session: ArenaSession, waveDef: WaveDefinition): Boolean {
@@ -229,10 +242,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
 
         val activeEntities = session.activeEntities
-        if (activeEntities.isEmpty() == true) {
-            session.currentWaveSpawnProgress.clear()
-            return
-        }
+        session.currentWaveSpawnProgress.clear()
 
         if (despawn) {
             LogUtil.info("[WaveEngine] Sending despawn signal to ${activeEntities.size} NPCs.")
@@ -269,10 +279,24 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
             return
         }
 
-        session.activeEntities = session.activeEntities.filter { it != entityId}.toTypedArray()
+        session.activeEntities = session.activeEntities.filter { it != entityId }.toTypedArray()
         arenaWavesEngineRepository.get().entityToSessionMap.remove(entityId)
         arenaWavesEngineRepository.save()
         LogUtil.debug("[WaveEngine] Entity $entityId removed from tracking for session $sessionId. Remaining: ${getAliveEntityCount(session)}")
+        if (getAliveEntityCount(session) == 0)
+            transitionTo(session, WaveState.WAITING_INTERVAL)
+    }
+
+    fun onDamageDealt(victimId: String, attackerId: String, damage: Float) {
+        val sessionId = arenaWavesEngineRepository.get().entityToSessionMap[victimId] ?: return
+        val session = arenaWavesEngineRepository.getSession(sessionId) ?: return
+
+        val currentWave = session.currentWave
+        val waveData = session.wavesData.getOrPut(currentWave) { WaveCurrentData() }
+        val currentTotal = waveData.damage.getOrDefault(attackerId, 0.0) as Float
+        waveData.damage[attackerId] = currentTotal + damage
+
+        LogUtil.debug("[WaveEngine] Recorded $damage damage for player $attackerId in wave $currentWave (Session: $sessionId)")
     }
 }
 

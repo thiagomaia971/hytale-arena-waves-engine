@@ -20,12 +20,11 @@ class ArenaSession {
     var waveMapId: String = ""
     var world: String = "default"
     var startTime: Long = System.currentTimeMillis()
-    var waveClearTime: Long = 0L
+
+    val wavesData: ConcurrentHashMap<Int, WaveCurrentData> = ConcurrentHashMap()
 
     var activeEntities: Array<String> = emptyArray()
-
-    // Runtime entity tracking (not persisted)
-    val currentWaveSpawnProgress: MutableMap<String, Int> = ConcurrentHashMap()
+    val currentWaveSpawnProgress: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
 
     fun validate(): ArenaSession {
         return this
@@ -37,10 +36,16 @@ class ArenaSession {
             EnumCodec.EnumStyle.CAMEL_CASE
         )
 
-        val ACTIVIES_ENTITY_MAP_CODEC = MapCodec<String, ConcurrentHashMap<String, String>>(
-            Codec.STRING,
-            { ConcurrentHashMap<String, String>() },
-            false // false = Modifiable so we can clear/putAll
+        val INT_VALUE_MAP_CODEC = MapCodec<Int, ConcurrentHashMap<String, Int>>(
+            Codec.INTEGER,
+            { ConcurrentHashMap<String, Int>() },
+            false
+        )
+
+        val WAVES_DATA_MAP_CODEC = MapCodec<WaveCurrentData?, ConcurrentHashMap<String, WaveCurrentData?>>(
+            WaveCurrentData.CODEC as Codec<WaveCurrentData?>,
+            { ConcurrentHashMap<String, WaveCurrentData?>() },
+            false
         )
 
         val CODEC: BuilderCodec<ArenaSession?> = BuilderCodec.builder<ArenaSession?>(
@@ -75,13 +80,28 @@ class ArenaSession {
                 { config, value, _ -> config!!.world = value!! },
                 { config, _ -> config!!.world }).add()
             .append(
-                KeyedCodec("WaveClearTime", Codec.LONG),
-                { config, value, _ -> config!!.waveClearTime = value!! },
-                { config, _ -> config!!.waveClearTime }).add()
+                KeyedCodec("StartTime", Codec.LONG),
+                { config, value, _ -> config!!.startTime = value!! },
+                { config, _ -> config!!.startTime }).add()
+            .append(
+                KeyedCodec("WavesData", WAVES_DATA_MAP_CODEC as Codec<ConcurrentHashMap<String, WaveCurrentData?>>),
+                { config, value, _ ->
+                    config!!.wavesData.clear()
+                    value?.forEach { (k, v) -> if (v != null) config.wavesData[k.toInt()] = v }
+                },
+                { config, _ ->
+                    val map = ConcurrentHashMap<String, WaveCurrentData?>()
+                    config!!.wavesData.forEach { (k, v) -> map[k.toString()] = v }
+                    map
+                }).add()
             .append(
                 KeyedCodec("ActiveEntities", Codec.STRING_ARRAY),
                 { config, value, _ -> config!!.activeEntities = value },
                 { config, _ -> config!!.activeEntities } ).add()
+            .append(
+                KeyedCodec("CurrentWaveSpawnProgress", INT_VALUE_MAP_CODEC),
+                { config, value, _ -> config!!.currentWaveSpawnProgress.clear(); if (value != null) config.currentWaveSpawnProgress.putAll(value) },
+                { config, _ -> config!!.currentWaveSpawnProgress }).add()
             .build()
     }
 }

@@ -13,7 +13,6 @@ data class ArenaConfig(
     val defaultSpawnRadius: Double = 50.0,
     val maxConcurrentMobsPerSession: Int = 50,
     val maxConcurrentSessionsGlobal: Int = 3,
-    val cleanupTimeoutSeconds: Int = 300,
     val debugLoggingEnabled: Boolean = false,
     val arenaMapDefinitions: List<ArenaMapDefinition> = emptyList(),
     val arenaSessions: List<String> = emptyList()
@@ -25,7 +24,6 @@ data class ArenaConfig(
         require(defaultSpawnRadius > 0.0) { "defaultSpawnRadius must be positive" }
         require(maxConcurrentMobsPerSession > 0) { "maxConcurrentMobsPerSession must be positive" }
         require(maxConcurrentSessionsGlobal > 0) { "maxConcurrentSessionsGlobal must be positive" }
-        require(cleanupTimeoutSeconds > 0) { "cleanupTimeoutSeconds must be positive" }
         // Validate nested structures
         arenaMapDefinitions.forEach { it.validate() }
     }
@@ -37,7 +35,6 @@ data class ArenaConfig(
         // Business rule: max concurrent sessions should not exceed a reasonable limit
         require(maxConcurrentSessionsGlobal <= 10) { "maxConcurrentSessionsGlobal cannot exceed 10" }
         // Business rule: cleanup timeout should be reasonable
-        require(cleanupTimeoutSeconds >= 60) { "cleanupTimeoutSeconds must be at least 60 seconds" }
         // Business rule: ensure arena map definitions are valid
         require(arenaMapDefinitions.all { it.waves.isNotEmpty() }) { "All arena maps must have at least one wave" }
         return this
