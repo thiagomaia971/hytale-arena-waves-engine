@@ -43,6 +43,7 @@ class SessionStarted : IEvent<Void> {
 class SessionPaused : IEvent<Void> {
     var sessionId: String? = null
     var pauseAll: Boolean = false
+    var despawn: Boolean = true
 }
 
 class EntityKilled : IEvent<Void> {

@@ -13,6 +13,7 @@ import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.EntityKilled
 import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.service.WaveScheduler
 import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
@@ -21,6 +22,10 @@ import com.miilhozinho.arenawavesengine.util.LogUtil
 
 class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     // Wave services
+    var configState: Config<ArenaWavesEngineConfig>? = null
+    var config: ArenaWavesEngineConfig = ArenaWavesEngineConfig()
+    lateinit var arenaWavesEngineRepository: ArenaWavesEngineRepository
+
     lateinit var waveEngine: WaveEngine
     lateinit var waveScheduler: WaveScheduler
     var commandStartEventRegistration: CommandRegistration? = null
@@ -33,22 +38,20 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     init {
         try {
             ConfigLoader(dataDirectory).createOrLoad(pluginName)
-            configState = this.withConfig<ArenaWavesEngineConfig?>(pluginName, ArenaWavesEngineConfig.CODEC)
-
-            // Initialize the new configuration architecture
-//            CONFIG?.get()?.initializeWithProvider(dataDirectory)
+            configState = this.withConfig<ArenaWavesEngineConfig>(pluginName, ArenaWavesEngineConfig.CODEC)
         } catch (e: Exception) {
             LogUtil.severe("Failed to load configuration: ${e.message}")
             LogUtil.severe("Please check your config.json file for validation errors")
-            throw e // Fail-fast: prevent plugin from loading with invalid config
+            throw e
         }
     }
 
-
     override fun setup() {
         super.setup()
-        config = configState?.get()!!
+        arenaWavesEngineRepository = ArenaWavesEngineRepository(configState!!)
+        config = arenaWavesEngineRepository.loadConfig()
         config.validate()
+        isDebugLogs = config.debugLoggingEnabled
 
         LogUtil.info("Configuration loaded successfully with new architecture")
         if (config.debugLoggingEnabled == true) {
@@ -56,8 +59,8 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         }
 
         // Initialize wave services
-        waveEngine = WaveEngine(this)
-        waveScheduler = WaveScheduler(waveEngine)
+        waveEngine = WaveEngine(arenaWavesEngineRepository)
+        waveScheduler = WaveScheduler(arenaWavesEngineRepository, waveEngine)
 
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
         LogUtil.info("Setup")
@@ -111,8 +114,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     }
 
     companion object {
-        var configState: Config<ArenaWavesEngineConfig?>? = null
-        var config: ArenaWavesEngineConfig = ArenaWavesEngineConfig()
         var pluginName = "ArenaWavesEngine"
+        var isDebugLogs = false
     }
 }
