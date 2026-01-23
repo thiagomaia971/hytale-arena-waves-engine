@@ -1,19 +1,20 @@
 package com.miilhozinho.arenawavesengine
 
 import com.hypixel.hytale.event.EventRegistration
+import com.hypixel.hytale.event.IEvent
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.CommandRegistration
+import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
+import com.hypixel.hytale.server.core.universe.PlayerRef
+import com.hypixel.hytale.server.core.universe.Universe
 import com.hypixel.hytale.server.core.universe.world.events.StartWorldEvent
 import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.command.ArenaWavesEngineCommand
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
-import com.miilhozinho.arenawavesengine.domain.WaveState
-import com.miilhozinho.arenawavesengine.events.DamageDealt
-import com.miilhozinho.arenawavesengine.events.EntityKilled
-import com.miilhozinho.arenawavesengine.events.SessionPaused
-import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.events.*
+import com.miilhozinho.arenawavesengine.hud.ActiveSessionHudManager
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.service.WaveScheduler
@@ -21,6 +22,7 @@ import com.miilhozinho.arenawavesengine.systems.DamageTrackingSystem
 import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
 import com.miilhozinho.arenawavesengine.util.ConfigLoader
 import com.miilhozinho.arenawavesengine.util.LogUtil
+
 
 class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     // Wave services
@@ -30,12 +32,11 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     lateinit var waveEngine: WaveEngine
     lateinit var waveScheduler: WaveScheduler
+    lateinit var activeSessionHudManager: ActiveSessionHudManager
+
+
     var commandStartEventRegistration: CommandRegistration? = null
-    var sessionsStartedEventRegistration: EventRegistration<Void, SessionStarted>? = null
-    var sessionsPausedEventRegistration: EventRegistration<Void, SessionPaused>? = null
-    var entityKilledEventRegistration: EventRegistration<Void, EntityKilled>? = null
-    var damageDealtEventRegistration: EventRegistration<Void, DamageDealt>? = null
-    var startWorldEventRegistration: EventRegistration<String, StartWorldEvent>? = null
+    var domainEventsRegistration: Array<EventRegistration<Void, IEvent<Void>>?> = arrayOf()
 
 
     init {
@@ -56,7 +57,6 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         config.validate()
         isDebugLogs = config.debugLoggingEnabled
 
-        LogUtil.info("Configuration loaded successfully with new architecture")
         if (config.debugLoggingEnabled == true) {
             LogUtil.info("Debug logging enabled")
         }
@@ -64,33 +64,48 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         // Initialize wave services
         waveEngine = WaveEngine(arenaWavesEngineRepository)
         waveScheduler = WaveScheduler(arenaWavesEngineRepository, waveEngine)
+        activeSessionHudManager = ActiveSessionHudManager(arenaWavesEngineRepository)
 
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
-        LogUtil.info("Setup")
-        commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand())
+        commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand(activeSessionHudManager))
+        this.eventRegistry.registerGlobal(PlayerReadyEvent::class.java, { e ->
+            val player = e.player ?: return@registerGlobal
+            val ref = player.reference
+            if (ref == null || !ref.isValid) return@registerGlobal
+            val store = ref.store
+            val playerRef = store.getComponent(ref, PlayerRef.getComponentType())!!
+
+            loadInitialHud(playerRef)
+        })
+
         entityStoreRegistry.registerSystem(DeathDetectionSystem())
         entityStoreRegistry.registerSystem(DamageTrackingSystem(arenaWavesEngineRepository))
-
+//
         val eventBus = HytaleServer.get().eventBus
-        sessionsStartedEventRegistration = eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) })
-        sessionsPausedEventRegistration = eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.pauseSession(event) })
-        entityKilledEventRegistration = eventBus.registerGlobal(EntityKilled::class.java, { event -> waveScheduler.onEntityDeath(event) })
-        damageDealtEventRegistration = eventBus.registerGlobal(DamageDealt::class.java, { event -> waveScheduler.onDamageDealt(event) })
+        domainEventsRegistration += eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) }) as EventRegistration<Void, IEvent<Void>>?
+//        domainEventsRegistration += eventBus.registerGlobal(SessionStarted::class.java, { event -> activeSessionHudManager.openHud(event.sessionId, event.pla) })
+        domainEventsRegistration += eventBus.registerGlobal(SessionUpdated::class.java, { event -> activeSessionHudManager.updateHud(event.session) }) as EventRegistration<Void, IEvent<Void>>?
 
-        startWorldEventRegistration = eventRegistry.registerGlobal(StartWorldEvent::class.java, { event -> loadMapsOnStartupServer(event)})
+        domainEventsRegistration += eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.pauseSession(event) }) as EventRegistration<Void, IEvent<Void>>?
+        domainEventsRegistration += eventBus.registerGlobal(HudHided::class.java, { event -> activeSessionHudManager.removeAllHuds() }) as EventRegistration<Void, IEvent<Void>>?
+
+        domainEventsRegistration += eventBus.registerGlobal(EntityKilled::class.java, { event -> waveScheduler.onEntityDeath(event) }) as EventRegistration<Void, IEvent<Void>>?
+        domainEventsRegistration += eventBus.registerGlobal(DamageDealt::class.java, { event -> waveScheduler.onDamageDealt(event) }) as EventRegistration<Void, IEvent<Void>>?
+
+        domainEventsRegistration += eventRegistry.registerGlobal(StartWorldEvent::class.java, { event -> loadMapsOnStartupServer(event)}) as EventRegistration<Void, IEvent<Void>>?
     }
 
 
     override fun start() {
         LogUtil.info("Start")
+
+        val playersOn = Universe.get().players
+        for (playerRef in playersOn)
+            loadInitialHud(playerRef)
     }
 
     fun loadMapsOnStartupServer(event: StartWorldEvent) {
-        val allSesionsRunning = config.sessions.filter { it.world == event.world.name &&
-                it.state != WaveState.STOPPED &&
-                it.state != WaveState.COMPLETED &&
-                it.state != WaveState.FAILED
-        }
+        val allSesionsRunning = arenaWavesEngineRepository.getActiveSessions().filter { it.world == event.world.name }
 
         for (session in allSesionsRunning) {
             val sessionStartedEvent = SessionStarted().apply {
@@ -107,14 +122,32 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         }
     }
 
+    fun loadInitialHud(playerRef: PlayerRef) {
+        try {
+            val ref = playerRef.reference!!
+            val store = ref.store
+            val session = arenaWavesEngineRepository.getActiveSessions().find { it.owner == playerRef.uuid.toString() }
+
+            if (session != null) {
+                val world = Universe.get().getWorld(playerRef.worldUuid!!)!!
+                world.execute {
+                    activeSessionHudManager.openHud(session.id, playerRef, store)
+                }
+            }
+
+        } catch (e: Exception){
+            LogUtil.warn(e.localizedMessage)
+        }
+    }
+
+
     override fun shutdown() {
-        waveScheduler.shutdown()
+        activeSessionHudManager.removeAllHuds()
+
+//        waveScheduler.shutdown()
         commandStartEventRegistration?.unregister()
-        sessionsStartedEventRegistration?.unregister()
-        sessionsPausedEventRegistration?.unregister()
-        entityKilledEventRegistration?.unregister()
-        damageDealtEventRegistration?.unregister()
-        startWorldEventRegistration?.unregister()
+        for (session in domainEventsRegistration)
+            session?.unregister()
 
         LogUtil.info("[ArenaWavesEngine] Shutdown complete")
     }

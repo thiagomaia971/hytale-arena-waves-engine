@@ -22,6 +22,9 @@ dependencies {
     // Hytale Server API (provided by server at runtime)
     compileOnly(files("libs/HytaleServer.jar"))
     compileOnly(files("${System.getenv("APPDATA")}/Hytale/install/release/package/game/latest/Server/HytaleServer.jar"))
+    compileOnly(files("E:\\Worksplace\\hytale-arena-waves-engine\\src\\main\\dependencies\\MultipleHUD-1.0.3.jar"))
+    compileOnly(files("E:\\Worksplace\\hytale-arena-waves-engine\\src\\main\\dependencies\\HyUI-0.5.0-all.jar"))
+
     // Common dependencies (will be bundled in JAR)
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.jetbrains:annotations:24.1.0")

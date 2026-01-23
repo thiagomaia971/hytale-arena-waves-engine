@@ -1,5 +1,6 @@
 package com.miilhozinho.arenawavesengine.service
 
+import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.core.universe.Universe
@@ -9,6 +10,7 @@ import com.hypixel.hytale.server.npc.entities.NPCEntity
 import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.events.SessionUpdated
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
@@ -32,6 +34,9 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
             WaveState.COMPLETED        -> checkCompleted(session)
             else -> LogUtil.warn("[WaveEngine] Unhandled state ${session.state} for $sessionId")
         }
+        if (arenaWavesEngineRepository.save())
+            HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+                .dispatch(SessionUpdated(session))
     }
 
     private fun prepareWave(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
@@ -167,6 +172,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
     private fun checkCompleted(session: ArenaSession) {
         session.currentWaveSpawnProgress.clear()
+        arenaWavesEngineRepository.markToSave()
     }
 
     private fun isWaveFullySpawned(session: ArenaSession, waveDef: WaveDefinition): Boolean {
@@ -213,6 +219,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
             session.activeEntities += npcUuidComponent.uuid.toString()
             arenaWavesEngineRepository.get().entityToSessionMap[npcUuidComponent.uuid.toString()] = session.id
+            arenaWavesEngineRepository.markToSave()
             LogUtil.debug("[WaveEngine] Entity ${npcUuidComponent.uuid} tracked for session ${session.id}")
         }
     }
@@ -222,6 +229,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         val oldState = session.state
         session.state = newState
         LogUtil.info("[WaveEngine] Session ${session.id} state transition: $oldState -> $newState")
+        arenaWavesEngineRepository.markToSave()
     }
 
 
@@ -248,19 +256,19 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
             LogUtil.info("[WaveEngine] Sending despawn signal to ${activeEntities.size} NPCs.")
             val world = Universe.get().getWorld(session.world)
             activeEntities.forEach { entityId ->
-                val entityRef = world?.getEntityRef(UUID.fromString(entityId))
-                val store = entityRef?.store!!
-                val npc = store.getComponent<NPCEntity>(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
-
-                if (npc.wasRemoved())
-                    return@forEach
-
                 try {
+                    val entityRef = world?.getEntityRef(UUID.fromString(entityId))
+                    val store = entityRef?.store!!
+                    val npc = store.getComponent<NPCEntity>(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
+
+                    if (npc.wasRemoved())
+                        return@forEach
+
                     npc.setToDespawn()
                     arenaWavesEngineRepository.get().entityToSessionMap.remove(entityId)
                     LogUtil.debug("[WaveEngine] SetDespawning(true) for NPC: ${npc.roleName} - $entityId")
                 } catch (e: Exception) {
-                    LogUtil.warn("[WaveEngine] Error despawning NPC ${npc.roleName} - $entityId: ${e.message}")
+                    LogUtil.warn("[WaveEngine] Error despawning NPC $entityId: ${e.message}")
                 }
             }
         }
@@ -280,11 +288,17 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
 
         session.activeEntities = session.activeEntities.filter { it != entityId }.toTypedArray()
+        session.wavesData[session.currentWave]?.enemiesKilled += 1
         arenaWavesEngineRepository.get().entityToSessionMap.remove(entityId)
-        arenaWavesEngineRepository.save()
+        arenaWavesEngineRepository.save(forceSave = true)
+        HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+            .dispatch(SessionUpdated(session))
+
         LogUtil.debug("[WaveEngine] Entity $entityId removed from tracking for session $sessionId. Remaining: ${getAliveEntityCount(session)}")
-        if (getAliveEntityCount(session) == 0)
+        if (getAliveEntityCount(session) == 0){
             transitionTo(session, WaveState.WAITING_INTERVAL)
+            arenaWavesEngineRepository.save(forceSave = true)
+        }
     }
 
     fun onDamageDealt(victimId: String, attackerId: String, damage: Float) {

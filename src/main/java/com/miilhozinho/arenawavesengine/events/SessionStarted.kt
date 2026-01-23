@@ -1,18 +1,15 @@
 package com.miilhozinho.arenawavesengine.events
 
-import com.hypixel.hytale.component.Ref
 import com.hypixel.hytale.component.Store
 import com.hypixel.hytale.event.IEvent
 import com.hypixel.hytale.math.shape.Box
 import com.hypixel.hytale.math.vector.Vector3d
 import com.hypixel.hytale.math.vector.Vector3f
-import com.hypixel.hytale.server.core.command.system.CommandContext
-import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
-import java.util.UUID
 
 class SessionStarted : IEvent<Void> {
+    lateinit var sessionId: String
     lateinit var waveMapId: String
     lateinit var store: Store<EntityStore?>
     lateinit var playerId: String
@@ -40,18 +37,3 @@ class SessionStarted : IEvent<Void> {
     var spawnOnGround: Boolean = false
 }
 
-class SessionPaused : IEvent<Void> {
-    var sessionId: String? = null
-    var pauseAll: Boolean = false
-    var despawn: Boolean = true
-}
-
-class EntityKilled : IEvent<Void> {
-    lateinit var entityId: String
-}
-
-class DamageDealt : IEvent<Void> {
-    lateinit var victimId: String
-    lateinit var attackerId: String
-    var damage: Float = 0.0f
-}

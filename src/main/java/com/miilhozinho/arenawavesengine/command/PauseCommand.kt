@@ -5,17 +5,16 @@ import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.command.system.arguments.system.FlagArg
 import com.hypixel.hytale.server.core.command.system.arguments.system.OptionalArg
-import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes
 import com.hypixel.hytale.server.core.command.system.basecommands.AbstractPlayerCommand
 import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.miilhozinho.arenawavesengine.events.SessionPaused
-import java.util.Optional
+import com.miilhozinho.arenawavesengine.hud.ActiveSessionHudManager
 import java.util.UUID
 
-class PauseCommand : AbstractPlayerCommand("pause", "Pause the arena wave") {
+class PauseCommand(val activeSessionHudManager: ActiveSessionHudManager) : AbstractPlayerCommand("pause", "Pause the arena wave") {
     private val sessionIdArg: OptionalArg<UUID?>
     private val pauseAllArg: FlagArg
 
@@ -36,9 +35,13 @@ class PauseCommand : AbstractPlayerCommand("pause", "Pause the arena wave") {
         val event = SessionPaused().apply {
             this.sessionId = sessionIdArg.get(context)?.toString() ?: null
             this.pauseAll = pauseAllArg.get(context)
+            this.despawn = true
         }
 
+//        activeSessionHudManager.cancelHud(HudHided().apply { sessionId = sessionIdArg.get(context)?.toString() ?: null }) TODO:
+
         HytaleServer.get().eventBus.dispatchFor(SessionPaused::class.java).dispatch(event)
+        activeSessionHudManager.removeAllHuds()
     }
 }
 

@@ -6,11 +6,12 @@ import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.DamageDealt
 import com.miilhozinho.arenawavesengine.events.EntityKilled
+import com.miilhozinho.arenawavesengine.events.HudHided
 import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.events.SessionUpdated
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.util.LogUtil
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
@@ -22,25 +23,25 @@ class WaveScheduler(
     private val activeTasks = ConcurrentHashMap<String, ScheduledFuture<*>>()
 
     fun startSession(event: SessionStarted): Boolean {
-        val sessionId = UUID.randomUUID().toString()
-        LogUtil.debug("[WaveScheduler] Attempting to start session: $sessionId for map: ${event.waveMapId}")
+        LogUtil.debug("[WaveScheduler] Attempting to start session: $event.sessionId for map: ${event.waveMapId}")
 
-        if (activeTasks.containsKey(sessionId)) {
-            LogUtil.warn("[WaveScheduler] Session $sessionId is already being tracked.")
+        if (activeTasks.containsKey(event.sessionId)) {
+            LogUtil.warn("[WaveScheduler] Session $event.sessionId is already being tracked.")
             return false
         }
 
         val session = ArenaSession().apply {
-            this.id = sessionId
+            this.id = event.sessionId
             this.waveMapId = event.waveMapId
             this.state = WaveState.RUNNING
             this.owner = event.playerId
             this.spawnPosition = event.spawnPosition
             this.world = event.world.name
+            this.activePlayers = arrayOf(event.playerId)
         }
 
         persistNewSession(session)
-        startTask(sessionId, event)
+        startTask(event.sessionId, event)
         return true
     }
 
@@ -55,6 +56,9 @@ class WaveScheduler(
         Universe.get().taskRegistry.registerTask(task as ScheduledFuture<Void>)
 
         LogUtil.info("[WaveScheduler] Successfully started wave task for session $sessionId")
+
+        HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+            .dispatch(SessionUpdated(arenaWavesEngineRepository.getSession(sessionId)!!))
     }
 
     private fun runTick(sessionId: String, event: SessionStarted) {
@@ -80,7 +84,9 @@ class WaveScheduler(
                 }
 
                 waveEngine.processTick(sessionId, session, event)
-                arenaWavesEngineRepository.save()
+//                arenaWavesEngineRepository.save() //TODO
+//                HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+//                    .dispatch(SessionUpdated(session))
 
             } catch (e: Exception) {
                 LogUtil.severe("[WaveScheduler] Critical error in tick for $sessionId: ${e.stackTraceToString()}")
@@ -91,26 +97,35 @@ class WaveScheduler(
 
     private fun persistNewSession(session: ArenaSession) {
         arenaWavesEngineRepository.addSession(session)
-        arenaWavesEngineRepository.save()
+        arenaWavesEngineRepository.save(forceSave = true)
+//        HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java) // TODO
+//            .dispatch(SessionUpdated(session))
     }
 
     fun pauseSession(event: SessionPaused) {
-        var sessions = arrayOf<String>()
+        var sessionsTask = arrayOf<String>()
         if (event.sessionId != null)
-            sessions += event.sessionId!!
+            sessionsTask += event.sessionId!!
         else
-            sessions = activeTasks.keys.toTypedArray()
+            sessionsTask = arenaWavesEngineRepository.getActiveSessions().map { it.id }.toTypedArray()
 
-        for (sessionId in sessions) {
+        for (sessionId in sessionsTask) {
             val task = activeTasks.remove(sessionId)
             if (task != null) {
                 val cancelled = task.cancel(false)
                 LogUtil.info("[WaveScheduler] Task for ${sessionId} cancelled: $cancelled")
-
-                waveEngine.stopSession(sessionId, event.despawn)
-            } else {
-                LogUtil.debug("[WaveScheduler] No active task found for ${sessionId} during stop request.")
             }
+
+            waveEngine.stopSession(sessionId, event.despawn)
+
+            arenaWavesEngineRepository.save(forceSave = true)
+            HytaleServer.get().eventBus.dispatchFor(HudHided::class.java).dispatch(
+                HudHided().apply {
+                    this.sessionId = sessionId
+                }
+            )
+//                HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+//                    .dispatch(SessionUpdated(session)) // TODO
         }
     }
 

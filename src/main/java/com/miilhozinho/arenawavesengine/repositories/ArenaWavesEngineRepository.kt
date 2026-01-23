@@ -5,8 +5,10 @@ import com.miilhozinho.arenawavesengine.config.ArenaMapDefinition
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
 import com.miilhozinho.arenawavesengine.config.WaveCurrentData
+import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.repositories.base.Repository
 import com.miilhozinho.arenawavesengine.util.LogUtil
+import java.util.UUID
 
 class ArenaWavesEngineRepository(config: Config<ArenaWavesEngineConfig>) : Repository<ArenaWavesEngineConfig>(config) {
     fun addSession(session: ArenaSession) {
@@ -26,6 +28,17 @@ class ArenaWavesEngineRepository(config: Config<ArenaWavesEngineConfig>) : Repos
         val session = getSession(sessionId) ?: return null
 
         return session.wavesData[session.currentWave]
+    }
+
+    fun getActiveSessions(): Array<ArenaSession> {
+        return currentConfig?.sessions?.filter {
+            it.state != WaveState.COMPLETED &&
+            it.state != WaveState.STOPPED &&
+            it.state != WaveState.FAILED }?.toTypedArray() ?: emptyArray()
+    }
+
+    fun getPlayerSession(playerId: String): ArenaSession? {
+        return getActiveSessions().find { it.owner == playerId }
     }
 
 }

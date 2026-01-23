@@ -4,6 +4,8 @@ import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.util.LogUtil
 
 open class Repository<T>(val fileConfig: Config<T>) : IRepository<T> {
+
+    private var markToSave: Boolean = false
     var currentConfig: T
 
     init {
@@ -19,10 +21,19 @@ open class Repository<T>(val fileConfig: Config<T>) : IRepository<T> {
         return currentConfig
     }
 
-    override fun save() {
-        fileConfig.apply {
-            save()
-            LogUtil.debug("[Repository] Config saved.")
+    override fun save(forceSave: Boolean): Boolean {
+        if (markToSave || forceSave){
+            markToSave = false
+            fileConfig.apply {
+                save()
+                LogUtil.debug("[Repository] Config saved.")
+            }
+            return true
         }
+        return false
+    }
+
+    override fun markToSave() {
+        markToSave = true
     }
 }

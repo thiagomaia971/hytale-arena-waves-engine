@@ -5,5 +5,6 @@ import com.miilhozinho.arenawavesengine.config.ArenaSession
 interface IRepository<T> {
     fun get(): T
     fun loadConfig(): T
-    fun save()
+    fun save(forceSave: Boolean = false): Boolean
+    fun markToSave()
 }

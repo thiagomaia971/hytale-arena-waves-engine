@@ -1,0 +1,68 @@
+$C = "../../Common.ui";
+
+//$C.@DecoratedContainer {
+Group {
+    @Width = 500;
+    @Height = 350;
+
+    LayoutMode: Right;
+    Anchor: (Width: @Width, Height: @Height, Right: 40, Top: 50);
+
+    Group {
+        Anchor: (Width: @Width, Height: @Height);
+
+        Group #Title {
+            Anchor: (Height: $C.@TitleHeight, Top: 0);
+            Background: (TexturePath: "../../Common/ContainerHeader.png", HorizontalBorder: 50, VerticalBorder: 0);
+            Padding: (Top: 7);
+
+            $C.@Title #TitleLabel {
+                @Text = "Oii";
+                @Alignment = Center;
+                Anchor: (Height: 38);
+            }
+            //Label #TitleLabel {
+            //    Text: "xxxx";
+            //    Anchor: (Width: @Width);
+            //    Style: (
+            //        $C.@TitleStyle
+            //    );
+            //}
+
+            Group #ContainerDecorationTop {
+              Anchor: (Width: 236, Height: 11, Top: -12);
+              Background: "../../Common/ContainerDecorationTop.png";
+            }
+        }
+
+        Group #Content {
+            LayoutMode: Top;
+            Anchor: (Top: $C.@TitleHeight);
+            Padding: $C.@ContentPadding;
+            Background: (TexturePath: "../../Common/ContainerPatch.png", Border: 23);
+
+            Group #ContentEnemies {
+                LayoutMode: Left;
+                Label #EnemiesAlive {
+                    Anchor: (Left: 0);
+                    Text: "123123123";
+                    //HorizontalAlignment: Center;
+                    //FlexWeight: 1;
+                }
+                Label #EnemiesTotalWave {
+                    Anchor: (Left: 0);
+                    Text: "0";
+                    //HorizontalAlignment: Center;
+                    //FlexWeight: 1;
+                }
+            }
+        }
+
+        Group #ContainerDecorationBottom {
+            Anchor: (Width: 236, Height: 11, Bottom: -6);
+            Background: "../../Common/ContainerDecorationBottom.png";
+        }
+
+        //$C.@ContentSeparator { }
+    }
+}

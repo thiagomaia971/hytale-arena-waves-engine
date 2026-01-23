@@ -5,6 +5,7 @@ import com.hypixel.hytale.math.shape.Box
 import com.hypixel.hytale.math.vector.Vector3d
 import com.hypixel.hytale.math.vector.Vector3f
 import com.hypixel.hytale.server.core.HytaleServer
+import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes
@@ -17,8 +18,10 @@ import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.hud.ActiveSessionHudManager
+import java.util.UUID
 
-class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
+class StartCommand(val activeSessionHudManager: ActiveSessionHudManager) : AbstractPlayerCommand("start", "Start a arena wave") {
     private val waveMapIdArg: RequiredArg<String>
     init {
         this.waveMapIdArg = this.withRequiredArg<String>("waveMapId", "Sets the wave map", ArgTypes.STRING)
@@ -31,6 +34,7 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
         world: World
     ) {
 
+
         val playerHeadRotation = getPlayerHeadRotation(store, ref)
         val playerPosition = getPlayerPosition(store, ref)
         val playerBoundingBox = getPlayerBoundingBox(store, ref)
@@ -41,6 +45,7 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
         )
 
         val sessionStartedEvent = SessionStarted().apply {
+            this.sessionId = UUID.randomUUID().toString()
             this.waveMapId = waveMapIdArg.get(context);
             this.store = store;
             this.playerPosition = playerPosition
@@ -51,7 +56,10 @@ class StartCommand : AbstractPlayerCommand("start", "Start a arena wave") {
 
             this.spawnPosition = spawnPosition
         }
+
         HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
+        context.sendMessage(Message.raw("Session ${sessionStartedEvent.sessionId} started!"))
+        activeSessionHudManager.openHud(sessionStartedEvent.sessionId, playerRef, store)
     }
 
     private fun getPlayerHeadRotation(

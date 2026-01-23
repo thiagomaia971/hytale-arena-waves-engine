@@ -11,6 +11,7 @@ class WaveCurrentData {
     var startTime: Long = 0
     var clearTime: Long = 0
     var duration: Int = 0
+    var enemiesKilled: Int = 0
     val damage: ConcurrentHashMap<String, Float> = ConcurrentHashMap()
 
     companion object {
@@ -35,6 +36,10 @@ class WaveCurrentData {
                 KeyedCodec("Duration", Codec.INTEGER),
                 { config, value, _ -> config!!.duration = value!! },
                 { config, _ -> config!!.duration }).add()
+            .append(
+                KeyedCodec("EnemiesKilled", Codec.INTEGER),
+                { config, value, _ -> config!!.enemiesKilled = value!! },
+                { config, _ -> config!!.enemiesKilled }).add()
             .append(
                 KeyedCodec("Damage", DAMAGE_MAP_CODEC as Codec<ConcurrentHashMap<String, Float>>),
                 { config, value, _ -> config!!.damage.clear(); if (value != null) config.damage.putAll(value) },

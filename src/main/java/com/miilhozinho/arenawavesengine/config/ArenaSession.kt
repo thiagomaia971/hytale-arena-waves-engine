@@ -24,6 +24,7 @@ class ArenaSession {
     val wavesData: ConcurrentHashMap<Int, WaveCurrentData> = ConcurrentHashMap()
 
     var activeEntities: Array<String> = emptyArray()
+    var activePlayers: Array<String> = emptyArray()
     val currentWaveSpawnProgress: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
 
     fun validate(): ArenaSession {
@@ -98,6 +99,10 @@ class ArenaSession {
                 KeyedCodec("ActiveEntities", Codec.STRING_ARRAY),
                 { config, value, _ -> config!!.activeEntities = value },
                 { config, _ -> config!!.activeEntities } ).add()
+            .append(
+                KeyedCodec("ActivePlayers", Codec.STRING_ARRAY),
+                { config, value, _ -> config!!.activePlayers = value },
+                { config, _ -> config!!.activePlayers } ).add()
             .append(
                 KeyedCodec("CurrentWaveSpawnProgress", INT_VALUE_MAP_CODEC),
                 { config, value, _ -> config!!.currentWaveSpawnProgress.clear(); if (value != null) config.currentWaveSpawnProgress.putAll(value) },
