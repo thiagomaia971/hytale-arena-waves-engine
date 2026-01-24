@@ -3,7 +3,6 @@ package com.miilhozinho.arenawavesengine.service
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
-import com.hypixel.hytale.server.core.modules.i18n.I18nModule
 import com.hypixel.hytale.server.core.universe.Universe
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
@@ -55,7 +54,8 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         LogUtil.debug("[WaveEngine] Preparing wave ${session.currentWave} for session ${session.id}")
         session.currentWaveSpawnProgress.clear()
-        val waveData = session.wavesData.getOrPut(session.currentWave) { WaveCurrentData() }
+
+        val waveData = session.createWaveData()
         waveData.startTime = System.currentTimeMillis()
         transitionTo(session, WaveState.SPAWNING)
     }

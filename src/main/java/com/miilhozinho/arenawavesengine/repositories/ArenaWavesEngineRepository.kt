@@ -41,4 +41,8 @@ class ArenaWavesEngineRepository(config: Config<ArenaWavesEngineConfig>) : Repos
         return getActiveSessions().find { it.owner == playerId }
     }
 
+    fun getMapDefition(waveMapId: String): ArenaMapDefinition? {
+        return currentConfig.arenaMaps.find { it.id == waveMapId }
+    }
+
 }

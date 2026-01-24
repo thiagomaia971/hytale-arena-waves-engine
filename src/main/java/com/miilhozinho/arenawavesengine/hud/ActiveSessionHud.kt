@@ -1,19 +1,40 @@
 package com.miilhozinho.arenawavesengine.hud
 
 import au.ellie.hyui.html.TemplateProcessor
-import com.sun.org.apache.xalan.internal.xsltc.compiler.Template
+import com.google.gson.Gson
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine
+import com.miilhozinho.arenawavesengine.config.ArenaSession
+import com.miilhozinho.arenawavesengine.util.LogUtil
 
 class ActiveSessionHud{
 
     companion object {
-        fun defaultTemplate(): TemplateProcessor {
-            return TemplateProcessor()
-                .registerComponent("enemyCard","""
-                    <div class="mob-row"> 
-                        <p class="mob-text">{{${'$'}enemyName}}</p>
-                        <p class="mob-count">{{${'$'}countKilled}}/{{${'$'}countDef}}</p>
-                    </div>
-                """)
+
+        fun createTemplateProcessor(session: ArenaSession, playerId: String): TemplateProcessor {
+            val template = TemplateProcessor()
+                .registerComponent("enemyMob", enemyMobComponent)
+            val mapDef = ArenaWavesEngine.repository.get().arenaMaps.find { it.id == session.waveMapId } ?: return template
+            val currentWaveDef = mapDef.waves[session.currentWave] ?: return template
+            val currentWaveData = session.wavesData[session.currentWave] ?: return template
+
+            val enemiesKilled = currentWaveData.enemiesKilled.values.sum()
+            val totalEnemiesWave = currentWaveDef.enemies.sumOf { it.count }
+            val progressBarValue = enemiesKilled.toFloat() / totalEnemiesWave.toFloat()
+            LogUtil.debug("Drawing ${Gson().toJson(session)}")
+
+            template.setVariable("mapName", mapDef.name)
+            template.setVariable("waveCount", "${session.currentWave + 1} / ${mapDef.waves.count()}")
+            template.setVariable("enemiesRemain", "${(totalEnemiesWave - enemiesKilled)} / $totalEnemiesWave")
+            template.setVariable("waveProgressBar", progressBarValue)
+            template.setVariable("waveProgressLabel", "${(progressBarValue * 100).toInt()}%")
+            template.setVariable("playerScore", session.getDamageScore(playerId))
+            template.setVariable("enemiesKilled", session.createWaveData().enemiesKilled.map { object {
+                val name = it.key;
+                val countIsAlive = (currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0) - it.value;
+                val countDef = currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0 }
+            })
+
+            return template;
         }
 
         val html = """
@@ -102,13 +123,7 @@ class ActiveSessionHud{
     }
 
     .mob-count {
-        color: #FFFFFF;
-        font-weight: bold;
-        font-size: 16;
-        anchor-right: 20;
-        flex-weight: 0;
-        text-align: right;
-        vertical-align: right;
+        font-size: 18;
     }
 
     .footer {
@@ -137,14 +152,23 @@ class ActiveSessionHud{
             <div style="layout-mode: Full;">
                 <progress id="wave-progress" value="{{${'$'}waveProgressBar}}" 
                     data-hyui-effect-height="20" 
-                    data-hyui-effect-offset="0"
-                    ">
+                    data-hyui-effect-offset="0">
                 </progress>
                 <div style="text-align: center;">
                     <p style="font-size: 14; color: #7FD9F8; font-weight: bold;" id="wave-progress-label">{{${'$'}waveProgressLabel}}</p>
                 </div>
             </div>
             <div style="anchor-top: 20;"></div>
+            {{#each enemiesKilled}}
+                {{@enemyMob:}}
+                <!--
+                <div class="mob-row"> 
+                    <p class="mob-text">{{${'$'}name}}</p>
+                    <p class="mob-count" style="color: #5D7A94; font-weight: bold;">{{${'$'}countIsAlive}}</p>
+                    <p class="mob-count" style="color: #5D7A94;">/{{${'$'}countDef}}</p>
+                </div>
+                -->
+            {{/each}}
         </div>
         
         
@@ -166,5 +190,13 @@ class ActiveSessionHud{
     </div>
 </div>
 """
+
+        val enemyMobComponent = """
+            <div class="mob-row"> 
+                <p class="mob-text">{{${'$'}name}}</p>
+                <p class="mob-count" style="color: #5D7A94; font-weight: bold;">{{${'$'}countIsAlive}}</p>
+                <p class="mob-count" style="color: #5D7A94;">/{{${'$'}countDef}}</p>
+            </div>
+        """.trimIndent()
     }
 }

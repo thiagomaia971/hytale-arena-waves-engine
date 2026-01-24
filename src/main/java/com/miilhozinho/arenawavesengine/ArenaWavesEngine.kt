@@ -4,6 +4,7 @@ import au.ellie.hyui.commands.HyUIShowcaseCommand
 import com.hypixel.hytale.event.EventRegistration
 import com.hypixel.hytale.event.IEvent
 import com.hypixel.hytale.server.core.HytaleServer
+import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandRegistration
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
@@ -17,6 +18,8 @@ import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
 import com.miilhozinho.arenawavesengine.events.*
 import com.miilhozinho.arenawavesengine.hud.ActiveSessionHudManager
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
+import com.miilhozinho.arenawavesengine.service.LogType
+import com.miilhozinho.arenawavesengine.service.PlayerMessageManager
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.service.WaveScheduler
 import com.miilhozinho.arenawavesengine.systems.DamageTrackingSystem
@@ -29,7 +32,6 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     // Wave services
     var configState: Config<ArenaWavesEngineConfig>? = null
     var config: ArenaWavesEngineConfig = ArenaWavesEngineConfig()
-    lateinit var arenaWavesEngineRepository: ArenaWavesEngineRepository
 
     lateinit var waveEngine: WaveEngine
     lateinit var waveScheduler: WaveScheduler
@@ -53,8 +55,8 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     override fun setup() {
         super.setup()
-        arenaWavesEngineRepository = ArenaWavesEngineRepository(configState!!)
-        config = arenaWavesEngineRepository.loadConfig()
+        repository = ArenaWavesEngineRepository(configState!!)
+        config = repository.loadConfig()
         config.validate()
         isDebugLogs = config.debugLoggingEnabled
 
@@ -63,9 +65,9 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         }
 
         // Initialize wave services
-        waveEngine = WaveEngine(arenaWavesEngineRepository)
-        waveScheduler = WaveScheduler(arenaWavesEngineRepository, waveEngine)
-        activeSessionHudManager = ActiveSessionHudManager(arenaWavesEngineRepository)
+        waveEngine = WaveEngine(repository)
+        waveScheduler = WaveScheduler(repository, waveEngine)
+        activeSessionHudManager = ActiveSessionHudManager(repository)
 
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
         commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand(activeSessionHudManager))
@@ -81,7 +83,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         })
 
         entityStoreRegistry.registerSystem(DeathDetectionSystem())
-        entityStoreRegistry.registerSystem(DamageTrackingSystem(arenaWavesEngineRepository))
+        entityStoreRegistry.registerSystem(DamageTrackingSystem(repository))
 //
         val eventBus = HytaleServer.get().eventBus
         domainEventsRegistration += eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.startSession(event) }) as EventRegistration<Void, IEvent<Void>>?
@@ -107,7 +109,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     }
 
     fun loadMapsOnStartupServer(event: StartWorldEvent) {
-        val allSesionsRunning = arenaWavesEngineRepository.getActiveSessions().filter { it.world == event.world.name }
+        val allSesionsRunning = repository.getActiveSessions().filter { it.world == event.world.name }
 
         for (session in allSesionsRunning) {
             val sessionStartedEvent = SessionStarted().apply {
@@ -128,14 +130,21 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         try {
             val ref = playerRef.reference!!
             val store = ref.store
-            val session = arenaWavesEngineRepository.getActiveSessions().find { it.owner == playerRef.uuid.toString() }
-
-            if (session != null) {
-                val world = Universe.get().getWorld(playerRef.worldUuid!!)!!
-                world.execute {
-                    activeSessionHudManager.openHud(session.id, playerRef, store)
+            val world = Universe.get().getWorld(playerRef.worldUuid!!)!!
+            world.execute {
+                try {
+                    activeSessionHudManager.initializePlayerHud(playerRef, store)
+                    val session = repository.getActiveSessions().find { it.owner == playerRef.uuid.toString() } ?: return@execute
+                    activeSessionHudManager.updateHud(session)
+                }catch (e: Exception){
+                    PlayerMessageManager.sendMessage(playerRef.uuid.toString(), Message.raw(e.message!!), LogType.WARN)
                 }
             }
+//
+//
+//
+//            if (session != null) {
+//            }
 
         } catch (e: Exception){
             LogUtil.warn(e.localizedMessage)
@@ -157,5 +166,6 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     companion object {
         var pluginName = "ArenaWavesEngine"
         var isDebugLogs = false
+        lateinit var repository: ArenaWavesEngineRepository
     }
 }

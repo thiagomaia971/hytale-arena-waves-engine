@@ -4,9 +4,7 @@ import com.hypixel.hytale.component.*
 import com.hypixel.hytale.math.shape.Box
 import com.hypixel.hytale.math.vector.Vector3d
 import com.hypixel.hytale.math.vector.Vector3f
-import com.hypixel.hytale.protocol.packets.interface_.NotificationStyle
 import com.hypixel.hytale.server.core.HytaleServer
-import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandContext
 import com.hypixel.hytale.server.core.command.system.arguments.system.RequiredArg
 import com.hypixel.hytale.server.core.command.system.arguments.types.ArgTypes
@@ -18,7 +16,6 @@ import com.hypixel.hytale.server.core.modules.physics.util.PhysicsMath
 import com.hypixel.hytale.server.core.universe.PlayerRef
 import com.hypixel.hytale.server.core.universe.world.World
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
-import com.hypixel.hytale.server.core.util.NotificationUtil
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.hud.ActiveSessionHudManager
 import java.util.UUID
@@ -35,8 +32,6 @@ class StartCommand(val activeSessionHudManager: ActiveSessionHudManager) : Abstr
         playerRef: PlayerRef,
         world: World
     ) {
-
-
         val playerHeadRotation = getPlayerHeadRotation(store, ref)
         val playerPosition = getPlayerPosition(store, ref)
         val playerBoundingBox = getPlayerBoundingBox(store, ref)
@@ -60,33 +55,32 @@ class StartCommand(val activeSessionHudManager: ActiveSessionHudManager) : Abstr
         }
 
         HytaleServer.get().eventBus.dispatchFor(SessionStarted::class.java).dispatch(sessionStartedEvent)
-        context.sendMessage(Message.raw("Session ${sessionStartedEvent.sessionId} started!"))
-        NotificationUtil.sendNotification(
-            playerRef.packetHandler,
-            Message.raw("Title"),
-            Message.raw("Message"),
-            NotificationStyle.Success  // or Warning, Error, Default
-        );
-        activeSessionHudManager.openHud(sessionStartedEvent.sessionId, playerRef, store)
+//        NotificationUtil.sendNotification(
+//            playerRef.packetHandler,
+//            Message.raw("Title"),
+//            Message.raw("Message"),
+//            NotificationStyle.Success  // or Warning, Error, Default
+//        );
+//        activeSessionHudManager.openHud(sessionStartedEvent.sessionId, playerRef, store)
     }
 
     private fun getPlayerHeadRotation(
         store: Store<EntityStore?>,
         ref: Ref<EntityStore?>
-    ): com.hypixel.hytale.math.vector.Vector3f {
+    ): Vector3f {
         val headRotationComponent = store.getComponent<HeadRotation?>(ref, HeadRotation.getComponentType()) as HeadRotation?
         checkNotNull(headRotationComponent)
-        return headRotationComponent.getRotation()
+        return headRotationComponent.rotation
     }
 
     private fun getPlayerPosition(
         store: Store<EntityStore?>,
         ref: Ref<EntityStore?>
-    ): com.hypixel.hytale.math.vector.Vector3d {
+    ): Vector3d {
         val transformComponent =
             store.getComponent<TransformComponent?>(ref, TransformComponent.getComponentType()) as TransformComponent?
         checkNotNull(transformComponent)
-        return transformComponent.getPosition()
+        return transformComponent.position
     }
 
     private fun getPlayerBoundingBox(
@@ -94,10 +88,9 @@ class StartCommand(val activeSessionHudManager: ActiveSessionHudManager) : Abstr
         ref: Ref<EntityStore?>
     ): Box {
         val boundingBoxComponent = store.getComponent<BoundingBox?>(ref, BoundingBox.getComponentType()) as BoundingBox?
-
         checkNotNull(boundingBoxComponent)
 
-        return boundingBoxComponent.getBoundingBox()
+        return boundingBoxComponent.boundingBox
     }
 
     private fun calculateTargetPosition(

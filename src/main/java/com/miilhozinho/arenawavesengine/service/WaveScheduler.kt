@@ -1,7 +1,9 @@
 package com.miilhozinho.arenawavesengine.service
 
 import com.hypixel.hytale.server.core.HytaleServer
+import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.universe.Universe
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 import com.miilhozinho.arenawavesengine.config.ArenaSession
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.DamageDealt
@@ -26,7 +28,14 @@ class WaveScheduler(
         LogUtil.debug("[WaveScheduler] Attempting to start session: $event.sessionId for map: ${event.waveMapId}")
 
         if (activeTasks.containsKey(event.sessionId)) {
-            LogUtil.warn("[WaveScheduler] Session $event.sessionId is already being tracked.")
+            LogUtil.warn("[WaveScheduler] Session ${event.sessionId} is already being tracked.")
+            return false
+        }
+
+        if (ArenaWavesEngine.repository.getMapDefition(event.waveMapId) == null) {
+            PlayerMessageManager.sendMessage(
+                event.playerId, Message.raw("[WaveScheduler] Wave Map ${event.waveMapId} not found."),
+                LogType.WARN)
             return false
         }
 
@@ -39,9 +48,13 @@ class WaveScheduler(
             this.world = event.world.name
             this.activePlayers = arrayOf(event.playerId)
         }
-
+        session.createWaveData()
         persistNewSession(session)
+
         startTask(event.sessionId, event)
+        HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+            .dispatch(SessionUpdated(session))
+
         return true
     }
 
