@@ -3,6 +3,7 @@ package com.miilhozinho.arenawavesengine.service
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
+import com.hypixel.hytale.server.core.modules.i18n.I18nModule
 import com.hypixel.hytale.server.core.universe.Universe
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
@@ -288,7 +289,14 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
 
         session.activeEntities = session.activeEntities.filter { it != entityId }.toTypedArray()
-        session.wavesData[session.currentWave]?.enemiesKilled += 1
+
+        val entityRef = Universe.get().getWorld(session.world)?.getEntityRef(UUID.fromString(entityId)) ?: return
+        val npcEntity = entityRef.store.getComponent(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
+        val waveData = session.wavesData[session.currentWave] ?: return
+
+        var enemyKilleds = waveData.enemiesKilled.getOrPut(npcEntity.roleName) { 0 }
+        waveData.enemiesKilled[npcEntity.roleName] = enemyKilleds + 1
+
         arenaWavesEngineRepository.get().entityToSessionMap.remove(entityId)
         arenaWavesEngineRepository.save(forceSave = true)
         HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)

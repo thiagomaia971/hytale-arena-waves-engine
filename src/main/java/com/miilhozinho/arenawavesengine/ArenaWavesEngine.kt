@@ -1,5 +1,6 @@
 package com.miilhozinho.arenawavesengine
 
+import au.ellie.hyui.commands.HyUIShowcaseCommand
 import com.hypixel.hytale.event.EventRegistration
 import com.hypixel.hytale.event.IEvent
 import com.hypixel.hytale.server.core.HytaleServer
@@ -68,6 +69,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
         commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand(activeSessionHudManager))
+        commandStartEventRegistration = commandRegistry.registerCommand(HyUIShowcaseCommand())
         this.eventRegistry.registerGlobal(PlayerReadyEvent::class.java, { e ->
             val player = e.player ?: return@registerGlobal
             val ref = player.reference

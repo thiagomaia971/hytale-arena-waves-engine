@@ -4,6 +4,7 @@ import com.hypixel.hytale.codec.Codec
 import com.hypixel.hytale.codec.KeyedCodec
 import com.hypixel.hytale.codec.builder.BuilderCodec
 import com.hypixel.hytale.codec.codecs.map.MapCodec
+import com.miilhozinho.arenawavesengine.config.ArenaSession.Companion.INT_VALUE_MAP_CODEC
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Supplier
 
@@ -11,7 +12,7 @@ class WaveCurrentData {
     var startTime: Long = 0
     var clearTime: Long = 0
     var duration: Int = 0
-    var enemiesKilled: Int = 0
+    var enemiesKilled: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
     val damage: ConcurrentHashMap<String, Float> = ConcurrentHashMap()
 
     companion object {
@@ -37,8 +38,8 @@ class WaveCurrentData {
                 { config, value, _ -> config!!.duration = value!! },
                 { config, _ -> config!!.duration }).add()
             .append(
-                KeyedCodec("EnemiesKilled", Codec.INTEGER),
-                { config, value, _ -> config!!.enemiesKilled = value!! },
+                KeyedCodec("EnemiesKilled", INT_VALUE_MAP_CODEC),
+                { config, value, _ -> config!!.enemiesKilled.clear(); if (value != null) config.enemiesKilled.putAll(value) },
                 { config, _ -> config!!.enemiesKilled }).add()
             .append(
                 KeyedCodec("Damage", DAMAGE_MAP_CODEC as Codec<ConcurrentHashMap<String, Float>>),

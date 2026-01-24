@@ -1,0 +1,191 @@
+<style>
+    /* Estilos Gerais */
+    .active-session-hud {
+        anchor-width: 400;
+        anchor-height: 400;
+        anchor-right: 25;
+        anchor-top: 40;
+    }
+
+    .active-session-hud-container {
+        layout-mode: Top;
+    }
+
+    .container {
+        anchor-height: 400;
+    }
+
+    .container-contents {
+    }
+
+    .row-display {
+        background-image: url("Common/ContainerHeader.png") 10;
+        text-align: center;
+        anchor-height: 45;
+        vertical-align: center;
+    }
+
+    .row-display-wave-progress {
+        background-image: url("Common/ContainerHeaderNoRunes.png") 20;
+        anchor-height: 100;
+        vertical-align: center;
+    }
+
+    .wave-progress-label {
+        text-align: center;
+        anchor-top: 15;
+    }
+
+    .wave-progress-bar {
+        text-align: center;
+        anchor-top: 30;
+    }
+
+    .wave-progress-values {
+        text-align: center;
+        anchor-top: 43;
+        font-size: 18
+    }
+
+    .wave-progress-values-label {
+        font-size: 18
+    }
+
+    .row-display-label {
+        layout-mode: Right;
+        vertical-align: center;
+        anchor-top: 10;
+        anchor-right: 15;
+        text-transform: uppercase;
+        font-size: 22;
+        font-weight: bold;
+        color: #7FD9F8;
+    }
+
+    .row-display-center-label {
+        text-transform: uppercase;
+        font-size: 22;
+        font-weight: bold;
+        color: #7FD9F8;
+    }
+
+    .row-display-value {
+        anchor-top: 10;
+        text-transform: uppercase;
+        font-size: 22;
+        font-weight: bold;
+        color: #96a9be;
+    }
+
+
+    .state-display {
+        text-align: center;
+        anchor-top: 0;
+        anchor-bottom: 10;
+    }
+
+    .state-display-style {
+        background-color: #FFAD42(0.4);
+        anchor-width: 300;
+        anchor-height: 25;
+        text-align: center;
+        vertical-align: center;
+    }
+
+    .state-label {
+        anchor-top: 5;
+        color: #FFAD42;
+        font-size: 12;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .enemy-list {
+        background-image: url("Common/ContainerPatch.png") 50;
+        anchor-height: 150;
+        flex-direction: column;
+    }
+
+    .mob-row {
+        flex-direction: row;
+        anchor-left: 20;
+    }
+
+    .mob-text {
+        color: #D1E8FF;
+        font-size: 16;
+        flex-weight: 1;
+    }
+
+    .mob-count {
+        color: #FFFFFF;
+        font-weight: bold;
+        font-size: 16;
+        anchor-right: 20;
+        flex-weight: 0;
+        text-align: right;
+        vertical-align: right;
+    }
+
+    .footer {
+        color: #A0E8FF;
+        font-size: 12;
+    }
+</style>
+
+<div class="active-session-hud">
+    <div class="active-session-hud-container">
+        <div class="container" data-hyui-title="Arena Waves Engine">
+
+            <div class="container-contents">
+                <div class="row-display">
+                    <p id="wave-counter-label" class="row-display-label">Wave</p><p id="row-display-value" class="row-display-value"></p>
+                </div>
+                <div class="state-display">
+                    <div class="state-display-style">
+                        <p id="wave-state" class="state-label">STATE: </p<p class="state-value">WAITING CLEAR</p>
+                    </div>
+                </div>
+
+                <div class="row-display-wave-progress">
+                    <div class="wave-progress-label">
+                        <p class="row-display-center-label">Wave Progress</p>
+                    </div>
+                    <div class="wave-progress-bar">
+                        <progress id="wave-progress" value="0.7" style="anchor-width: 300; anchor-height: 35"
+                                  data-hyui-effect-width="300"
+                                  data-hyui-effect-height="35"
+                                  data-hyui-effect-offset="0"
+                                  style="background-color: #ffffff">
+                        </progress>
+                    </div>
+                    <div class="wave-progress-values">
+                        <img src="Undead.png" width="25" height="30" style="anchor-top: 6;" />
+                        <p id="enemies-remaining" class="row-display-label wave-progress-values-label">Enemies Remaining: </p><p id="wave-enemies-remain" class="row-display-value wave-progress-values-label">4 / 10</p>
+                    </div>
+                </div>
+
+                <div id="enemy-list" class="enemy-list">
+                    <div style="anchor-top: 10;"></div>
+                    <div class="mob-row">
+                        <p class="mob-text">Skeleton</p>
+                        <p class="mob-count">x3</p>
+                    </div>
+
+                    <div class="mob-row">
+                        <p class="mob-text">Skeleton Archer</p>
+                        <p class="mob-count">x1</p>
+                    </div>
+                </div>
+
+                <!--
+
+                            <div style="layout: middle; margin-top: 20;">
+                                <p id="timer" class="footer-text" style="flex-weight: 1;">Time: 01:15</p>
+                                <p id="score" class="footer-text" style="text-align: right; flex-weight: 1;">Score: 0</p>
+                            </div>
+                -->
+            </div>
+        </div>
+    </div>
+</div>
