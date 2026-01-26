@@ -1,12 +1,16 @@
 package com.miilhozinho.arenawavesengine.service
 
+import com.hypixel.hytale.component.ComponentRegistry
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.core.universe.Universe
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
 import com.hypixel.hytale.server.npc.entities.NPCEntity
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine
+import com.miilhozinho.arenawavesengine.components.EnemyComponent
 import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
@@ -19,27 +23,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
     private val npcSpawn = NpcSpawn()
 
-    fun processTick(sessionId: String, session: ArenaSession, event: SessionStarted) {
-        if (session.state.isInactive()) {
-            LogUtil.debug("[WaveEngine] Tick skipped: Session $sessionId is in inactive state ${session.state}")
-            return
-        }
-        val arenaMapDefinition = arenaWavesEngineRepository.findArenaMapDefinition(session.waveMapId)
-
-        when (session.state) {
-            WaveState.RUNNING         -> prepareWave(session, arenaMapDefinition)
-            WaveState.SPAWNING        -> handleSpawning(session, arenaMapDefinition, event)
-            WaveState.WAITING_CLEAR   -> checkWaveCleared(session)
-            WaveState.WAITING_INTERVAL -> checkIntervalElapsed(session, arenaMapDefinition)
-            WaveState.COMPLETED        -> checkCompleted(session)
-            else -> LogUtil.warn("[WaveEngine] Unhandled state ${session.state} for $sessionId")
-        }
-        if (arenaWavesEngineRepository.save())
-            HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
-                .dispatch(SessionUpdated(session))
-    }
-
-    private fun prepareWave(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
+    fun prepareWave(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to prepare wave: Map ${session.waveMapId} not found")
             transitionTo(session, WaveState.FAILED)
@@ -60,7 +44,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         transitionTo(session, WaveState.SPAWNING)
     }
 
-    private fun handleSpawning(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?, event: SessionStarted) {
+    fun handleSpawning(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?, event: SessionStarted) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to spawn wave: Map ${session.waveMapId} not found")
             transitionTo(session, WaveState.FAILED)
@@ -109,9 +93,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
     }
 
-    private fun checkWaveCleared(
-        session: ArenaSession
-    ) {
+    fun checkWaveCleared(session: ArenaSession) {
         if (session.activeEntities.isEmpty()) {
             val now = System.currentTimeMillis()
             LogUtil.debug("[WaveEngine] Wave ${session.currentWave} cleared for session ${session.id}. Starting interval wait.")
@@ -128,10 +110,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
     }
 
-    private fun checkIntervalElapsed(
-        session: ArenaSession,
-        arenaMapDefinition: ArenaMapDefinition?
-    ) {
+    fun checkIntervalElapsed(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to check interval: Map ${session.waveMapId} not found")
             transitionTo(session, WaveState.FAILED)
@@ -153,17 +132,14 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
     }
 
-    private fun markToNextWave(
-        session: ArenaSession,
-        arenaMapDefinition: ArenaMapDefinition?
-    ) {
+    private fun markToNextWave(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to mark to next wave: Map ${session.waveMapId} not found")
             transitionTo(session, WaveState.FAILED)
             return
         }
 
-        if (session.currentWave <= arenaMapDefinition.waves.size) {
+        if (session.currentWave + 1 < arenaMapDefinition.waves.size) {
             session.currentWave++
             transitionTo(session, WaveState.RUNNING)
         } else {
@@ -171,7 +147,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         }
     }
 
-    private fun checkCompleted(session: ArenaSession) {
+    fun checkCompleted(session: ArenaSession) {
         session.currentWaveSpawnProgress.clear()
         arenaWavesEngineRepository.markToSave()
     }
@@ -184,55 +160,57 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
     private fun executeSpawn(session: ArenaSession, enemy: EnemyDefinition, count: Int, event: SessionStarted) {
         repeat(count) {
-            val spawnReturn = npcSpawn.execute(
-                event.store,
-                event.playerPosition,
-                event.playerHeadRotation,
-                event.playerBoundingBox,
-                event.world,
-                NPC_ROLE.parse(enemy.enemyType, ParseResult()) as BuilderInfo,
-                1,
-                event.radius,
-                event.flagsString,
-                event.speedArg,
-                event.nonRandom,
-                event.posOffset,
-                event.headRotation,
-                event.bodyRotation,
-                event.randomRotationArg,
-                event.facingRotation,
-                event.flockSize,
-                event.frozen,
-                event.randomModel,
-                event.scaleArg,
-                event.bypassScaleLimitsArg,
-                event.test,
-                event.spawnPosition,
-                event.spawnOnGround
-            )
-
-            val npcUuidComponent = checkNotNull(
-                spawnReturn.npcRef.store.getComponent<UUIDComponent?>(
-                    spawnReturn.npcRef,
-                    UUIDComponent.getComponentType()
+            event.world.execute {
+                val spawnReturn = npcSpawn.execute(
+                    event.store,
+                    event.playerPosition,
+                    event.playerHeadRotation,
+                    event.playerBoundingBox,
+                    event.world,
+                    NPC_ROLE.parse(enemy.enemyType, ParseResult()) as BuilderInfo,
+                    1,
+                    event.radius,
+                    event.flagsString,
+                    event.speedArg,
+                    event.nonRandom,
+                    event.posOffset,
+                    event.headRotation,
+                    event.bodyRotation,
+                    event.randomRotationArg,
+                    event.facingRotation,
+                    event.flockSize,
+                    event.frozen,
+                    event.randomModel,
+                    event.scaleArg,
+                    event.bypassScaleLimitsArg,
+                    event.test,
+                    event.spawnPosition,
+                    event.spawnOnGround
                 )
-            )
 
-            session.activeEntities += npcUuidComponent.uuid.toString()
-            arenaWavesEngineRepository.get().entityToSessionMap[npcUuidComponent.uuid.toString()] = session.id
-            arenaWavesEngineRepository.markToSave()
-            LogUtil.debug("[WaveEngine] Entity ${npcUuidComponent.uuid} tracked for session ${session.id}")
+                val npcUuidComponent = checkNotNull(
+                    spawnReturn.npcRef.store.getComponent<UUIDComponent?>(
+                        spawnReturn.npcRef,
+                        UUIDComponent.getComponentType()
+                    )
+                )
+
+
+                spawnReturn.npc.reference!!.store.addComponent(spawnReturn.npc.reference!!, ArenaWavesEngine.enemyComponentType,
+                    EnemyComponent().apply {
+                        this.entityId =  npcUuidComponent.uuid.toString()
+                        this.sessionId = session.id
+                        this.world = session.world
+                    }
+                )
+
+                spawnReturn.npc.reference!!.store.saveAllResources()
+
+                session.activeEntities += npcUuidComponent.uuid.toString()
+                LogUtil.debug("[WaveEngine] Entity ${npcUuidComponent.uuid} tracked for session ${session.id}")
+            }
         }
     }
-
-    private fun transitionTo(session: ArenaSession, newState: WaveState) {
-        if (session.state == newState) return
-        val oldState = session.state
-        session.state = newState
-        LogUtil.info("[WaveEngine] Session ${session.id} state transition: $oldState -> $newState")
-        arenaWavesEngineRepository.markToSave()
-    }
-
 
     fun getAliveEntityCount(session: ArenaSession): Int {
         return session.activeEntities.size
@@ -255,21 +233,22 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         if (despawn) {
             LogUtil.info("[WaveEngine] Sending despawn signal to ${activeEntities.size} NPCs.")
-            val world = Universe.get().getWorld(session.world)
+            val world = Universe.get().getWorld(session.world) ?: return
             activeEntities.forEach { entityId ->
-                try {
-                    val entityRef = world?.getEntityRef(UUID.fromString(entityId))
-                    val store = entityRef?.store!!
-                    val npc = store.getComponent<NPCEntity>(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
+                world.execute {
+                    try {
+                        val entityRef = world.getEntityRef(UUID.fromString(entityId))
+                        val store = entityRef?.store!!
+                        val npc = store.getComponent<NPCEntity>(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
 
-                    if (npc.wasRemoved())
-                        return@forEach
+                        if (npc.wasRemoved())
+                            return@execute
 
-                    npc.setToDespawn()
-                    arenaWavesEngineRepository.get().entityToSessionMap.remove(entityId)
-                    LogUtil.debug("[WaveEngine] SetDespawning(true) for NPC: ${npc.roleName} - $entityId")
-                } catch (e: Exception) {
-                    LogUtil.warn("[WaveEngine] Error despawning NPC $entityId: ${e.message}")
+                        npc.setToDespawn()
+                        LogUtil.debug("[WaveEngine] SetDespawning(true) for NPC: ${npc.roleName} - $entityId")
+                    } catch (e: Exception) {
+                        LogUtil.warn("[WaveEngine] Error despawning NPC $entityId: ${e.message}")
+                    }
                 }
             }
         }
@@ -279,8 +258,15 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
         transitionTo(session, WaveState.STOPPED)
     }
 
-    fun onEntityDeath(entityId: String) {
-        val sessionId = arenaWavesEngineRepository.get().entityToSessionMap[entityId] ?: return
+    private fun transitionTo(session: ArenaSession, newState: WaveState) {
+        if (session.state == newState) return
+        val oldState = session.state
+        session.state = newState
+        LogUtil.info("[WaveEngine] Session ${session.id} state transition: $oldState -> $newState")
+        arenaWavesEngineRepository.markToSave()
+    }
+
+    fun onEntityDeath(sessionId: String, entityId: String) {
         val session = arenaWavesEngineRepository.getSession(sessionId)
 
         if (session == null) {
@@ -290,35 +276,33 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         session.activeEntities = session.activeEntities.filter { it != entityId }.toTypedArray()
 
-        val entityRef = Universe.get().getWorld(session.world)?.getEntityRef(UUID.fromString(entityId)) ?: return
-        val npcEntity = entityRef.store.getComponent(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
-        val waveData = session.wavesData[session.currentWave] ?: return
+        val world = Universe.get().worlds[session.world] ?: return
+        world.execute {
+            val entityRef = world.getEntityRef(UUID.fromString(entityId)) ?: return@execute
+            val npcEntity = entityRef.store.getComponent(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
+            val waveData = session.wavesData[session.currentWave] ?: return@execute
 
-        var enemyKilleds = waveData.enemiesKilled.getOrPut(npcEntity.roleName) { 0 }
-        waveData.enemiesKilled[npcEntity.roleName] = enemyKilleds + 1
-
-        arenaWavesEngineRepository.get().entityToSessionMap.remove(entityId)
-        arenaWavesEngineRepository.save(forceSave = true)
-        HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
-            .dispatch(SessionUpdated(session))
-
-        LogUtil.debug("[WaveEngine] Entity $entityId removed from tracking for session $sessionId. Remaining: ${getAliveEntityCount(session)}")
-        if (getAliveEntityCount(session) == 0){
-            transitionTo(session, WaveState.WAITING_INTERVAL)
+            var enemyKilleds = waveData.enemiesKilled.getOrPut(npcEntity.roleName) { 0 }
+            waveData.enemiesKilled[npcEntity.roleName] = enemyKilleds + 1
             arenaWavesEngineRepository.save(forceSave = true)
+
+            HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+                .dispatch(SessionUpdated(session))
+
+            LogUtil.debug("[WaveEngine] Entity $entityId removed from tracking for session $sessionId. Remaining: ${getAliveEntityCount(session)}")
         }
     }
 
     fun onDamageDealt(victimId: String, attackerId: String, damage: Float) {
-        val sessionId = arenaWavesEngineRepository.get().entityToSessionMap[victimId] ?: return
-        val session = arenaWavesEngineRepository.getSession(sessionId) ?: return
+//        val sessionId = arenaWavesEngineRepository.get().entityToSessionMap[victimId] ?: return
+//        val session = arenaWavesEngineRepository.getSession(sessionId) ?: return
+//
+//        val currentWave = session.currentWave
+//        val waveData = session.wavesData.getOrPut(currentWave) { WaveCurrentData() }
+//        val currentTotal = waveData.damage.getOrDefault(attackerId, 0.0) as Float
+//        waveData.damage[attackerId] = currentTotal + damage
 
-        val currentWave = session.currentWave
-        val waveData = session.wavesData.getOrPut(currentWave) { WaveCurrentData() }
-        val currentTotal = waveData.damage.getOrDefault(attackerId, 0.0) as Float
-        waveData.damage[attackerId] = currentTotal + damage
-
-        LogUtil.debug("[WaveEngine] Recorded $damage damage for player $attackerId in wave $currentWave (Session: $sessionId)")
+        LogUtil.debug("[WaveEngine] Recorded $damage damage for player $attackerId in wave")
     }
 }
 

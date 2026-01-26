@@ -21,28 +21,4 @@ class WaveDefinition {
         }
         return this
     }
-
-    companion object {
-        val ENEMY_ARRAY_CODEC = ArrayCodec<EnemyDefinition>(
-            EnemyDefinition.CODEC,
-            { size -> arrayOfNulls<EnemyDefinition>(size) }
-        )
-
-        val CODEC: BuilderCodec<WaveDefinition?> = BuilderCodec.builder<WaveDefinition?>(
-            WaveDefinition::class.java,
-            Supplier { WaveDefinition() })
-            // 1. Field: interval
-            .append(
-                KeyedCodec("Interval", com.hypixel.hytale.codec.Codec.INTEGER),
-                { config, value, _ -> config!!.interval = value!! },
-                { config, _ -> config!!.interval }
-            ).add()
-            // 2. Field: enemies (The Array)
-            .append(
-                KeyedCodec("Enemies", ENEMY_ARRAY_CODEC),
-                { config, value, _ -> config!!.enemies = value.toList() },
-                { config, _ -> config!!.enemies.toTypedArray() }
-            ).add()
-            .build()
-    }
 }

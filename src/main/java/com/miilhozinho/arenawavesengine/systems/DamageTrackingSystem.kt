@@ -10,6 +10,7 @@ import com.hypixel.hytale.server.core.modules.entity.damage.Damage
 import com.hypixel.hytale.server.core.modules.entity.damage.Damage.EntitySource
 import com.hypixel.hytale.server.core.modules.entity.damage.DamageEventSystem
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
+import com.miilhozinho.arenawavesengine.components.EnemyComponent
 import com.miilhozinho.arenawavesengine.events.SessionUpdated
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 
@@ -26,9 +27,9 @@ class DamageTrackingSystem(val repository: ArenaWavesEngineRepository) : DamageE
             val targetUuidComponent =
                 store.getComponent<UUIDComponent?>(targetRef, UUIDComponent.getComponentType()) ?: return
 
-            val targetUuid = targetUuidComponent.getUuid()
-            val sessionId = repository.get().entityToSessionMap[targetUuid.toString()] ?: return
-            val currentWave = repository.getCurrentWave(sessionId) ?: return
+            val enemyComponent = store.getComponent(targetRef, EnemyComponent.getComponentType()) ?: return
+            if (enemyComponent.sessionId == null) return
+            val currentWave = repository.getCurrentWave(enemyComponent.sessionId!!) ?: return
 
             val damageSource = damage.source
             if (damageSource !is EntitySource)
@@ -48,11 +49,11 @@ class DamageTrackingSystem(val repository: ArenaWavesEngineRepository) : DamageE
 
             repository.save()
             HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
-                .dispatch(SessionUpdated(repository.getSession(sessionId)!!))
+                .dispatch(SessionUpdated(repository.getSession(enemyComponent.sessionId!!)!!))
         }
     }
 
     override fun getQuery(): Query<EntityStore?>? {
-        return Query.any()
+        return Query.and(EnemyComponent.getComponentType())
     }
 }

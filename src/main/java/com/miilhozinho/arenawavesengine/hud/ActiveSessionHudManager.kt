@@ -39,6 +39,12 @@ class ActiveSessionHudManager(val repository: ArenaWavesEngineRepository) {
     }
 
     fun updateHud(session: ArenaSession) {
+        if (session.isCompleted()) {
+            for (playerId in session.activePlayers)
+                removePlayerHud(playerId)
+            return
+        }
+
         val players = session.activePlayers
         val allHuds = hudsByPlayerId.filter { players.contains(it.key) }
         for (hudData in allHuds) {

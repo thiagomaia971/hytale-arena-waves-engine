@@ -4,6 +4,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
+import com.miilhozinho.arenawavesengine.config.codecs.ArenaWavesEngineConfigCodec
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.jvm.java
@@ -20,7 +21,7 @@ class ConfigLoader(
         val hytaleConfig = Config<ArenaWavesEngineConfig>(
             dataDir,
             fileName,
-            ArenaWavesEngineConfig.CODEC
+            ArenaWavesEngineConfigCodec.CODEC
         )
 
         // 2. Check if the file exists before loading

@@ -38,6 +38,9 @@ import com.hypixel.hytale.server.npc.role.RoleDebugFlags
 import com.hypixel.hytale.server.spawning.ISpawnableWithModel
 import com.hypixel.hytale.server.spawning.SpawnTestResult
 import com.hypixel.hytale.server.spawning.SpawningContext
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine
+import com.miilhozinho.arenawavesengine.components.EnemyComponent
+import com.miilhozinho.arenawavesengine.components.codecs.EnemyComponentCodec
 import com.miilhozinho.arenawavesengine.domain.SpawnReturn
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.Random
