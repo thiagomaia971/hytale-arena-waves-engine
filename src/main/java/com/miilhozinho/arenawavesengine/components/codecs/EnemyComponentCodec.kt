@@ -11,6 +11,10 @@ object EnemyComponentCodec {
         EnemyComponent::class.java,
         Supplier { EnemyComponent() })
         .append(
+            KeyedCodec("EntityRoleName", Codec.STRING),
+            { config, value, _ -> config!!.entityRoleName = value!! },
+            { config, _ -> config!!.entityRoleName }).add()
+        .append(
             KeyedCodec("EntityId", Codec.STRING),
             { config, value, _ -> config!!.entityId = value!! },
             { config, _ -> config!!.entityId }).add()

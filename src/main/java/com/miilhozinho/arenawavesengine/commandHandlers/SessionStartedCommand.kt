@@ -3,13 +3,11 @@ package com.miilhozinho.arenawavesengine.commandHandlers
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.universe.Universe
-import java.util.concurrent.TimeUnit
-import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 import com.miilhozinho.arenawavesengine.config.ArenaSession
-import com.miilhozinho.arenawavesengine.config.WaveCurrentData
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionUpdated
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.service.LogType
 import com.miilhozinho.arenawavesengine.service.PlayerMessageManager
@@ -22,6 +20,7 @@ import com.miilhozinho.arenawavesengine.util.LogUtil
  */
 class SessionStartedCommand(
     private val repository: ArenaWavesEngineRepository,
+    private val sessionRepository: ArenaSessionRepository,
     private val waveEngine: WaveEngine,
     private val event: SessionStarted
 ) : BaseWaveCommand<Boolean>(priority = CommandPriority.HIGH) {
@@ -31,7 +30,7 @@ class SessionStartedCommand(
             LogUtil.debug("[SessionStartedCommand] Attempting to start session: ${event.sessionId} for map: ${event.waveMapId}")
 
             // Validate map exists
-            if (repository.getMapDefition(event.waveMapId) == null) {
+            if (repository.getMapDefinition(event.waveMapId) == null) {
                 PlayerMessageManager.sendMessage(
                     event.playerId,
                     Message.raw("[SessionStartedCommand] Wave Map ${event.waveMapId} not found."),
@@ -41,7 +40,7 @@ class SessionStartedCommand(
             }
 
             // Check if session already exists (server restart scenario)
-            val existingSession = repository.getSession(event.sessionId)
+            val existingSession = sessionRepository.getSession(event.sessionId)
             val session = if (existingSession != null) {
                 LogUtil.debug("[SessionStartedCommand] Restarting existing session ${event.sessionId}")
                 existingSession
@@ -57,15 +56,13 @@ class SessionStartedCommand(
                     activePlayers = arrayOf(event.playerId)
                     startTime = System.currentTimeMillis()
                 }.also { newSession ->
-                    // Initialize wave data for new sessions
-                    newSession.createWaveData()
-                    // Persist new session
-                    repository.addSession(newSession)
-                    repository.save(forceSave = true)
+                    newSession.getOrCreateCurrentWave()
+                    sessionRepository.markToSave().let {
+                        sessionRepository.saveSession(newSession, SessionStarted::class.simpleName)
+                    }
                 }
             }
 
-            // Start the scheduled task
             startScheduledTask(session)
 
             // Dispatch session updated event
@@ -99,7 +96,7 @@ class SessionStartedCommand(
     private fun runWaveTick(session: ArenaSession) {
         try {
             // Execute wave processing (all logic is now encapsulated in WaveTickCommand)
-            val waveTickCommand = WaveTickCommand(waveEngine, repository, session.id, event)
+            val waveTickCommand = WaveTickCommand(waveEngine, repository, sessionRepository, session.id, event)
             val result = waveTickCommand.execute()
 
             if (result is CommandResult.Failure) {

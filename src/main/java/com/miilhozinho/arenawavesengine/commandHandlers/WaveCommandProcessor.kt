@@ -1,6 +1,7 @@
 package com.miilhozinho.arenawavesengine.commandHandlers
 
 import com.miilhozinho.arenawavesengine.events.*
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.util.LogUtil
@@ -14,6 +15,7 @@ import java.util.concurrent.PriorityBlockingQueue
  */
 class WaveCommandProcessor(
     private val repository: ArenaWavesEngineRepository,
+    private val sessionRepository: ArenaSessionRepository,
     private val waveEngine: WaveEngine
 ) {
 
@@ -35,8 +37,8 @@ class WaveCommandProcessor(
      */
     fun queueEvent(event: Any) {
         val command = when (event) {
-            is SessionStarted -> SessionStartedCommand(repository, waveEngine, event)
-            is SessionPaused -> SessionPausedCommand(repository, waveEngine, event)
+            is SessionStarted -> SessionStartedCommand(repository, sessionRepository, waveEngine, event)
+            is SessionPaused -> SessionPausedCommand(repository, sessionRepository, waveEngine, event)
             is EntityKilled -> EntityKilledCommand(waveEngine, event)
             is DamageDealt -> DamageDealtCommand(waveEngine, event)
             else -> {

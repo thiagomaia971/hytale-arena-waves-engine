@@ -5,6 +5,7 @@ import com.miilhozinho.arenawavesengine.events.DamageDealt
 import com.miilhozinho.arenawavesengine.events.EntityKilled
 import com.miilhozinho.arenawavesengine.events.SessionPaused
 import com.miilhozinho.arenawavesengine.events.SessionStarted
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.concurrent.ConcurrentHashMap
@@ -15,10 +16,11 @@ import java.util.concurrent.ScheduledFuture
  * The actual business logic has been moved into command objects for better separation of concerns.
  */
 class WaveScheduler(
-    repository: ArenaWavesEngineRepository,
-    waveEngine: WaveEngine
+    private val repository: ArenaWavesEngineRepository,
+    private val sessionRepository: ArenaSessionRepository,
+    private val waveEngine: WaveEngine
 ) {
-    private val commandProcessor = WaveCommandProcessor(repository, waveEngine)
+    private val commandProcessor = WaveCommandProcessor(repository, sessionRepository, waveEngine)
     private val activeTasks = ConcurrentHashMap<String, ScheduledFuture<Void>>()
 
     /**

@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap
 
 class ActiveSessionHudManager(val repository: ArenaWavesEngineRepository) {
     var hudsByPlayerId: ConcurrentHashMap<String, ActiveSessionHudData> = ConcurrentHashMap()
-    val iterableFor : ForIterable = ForIterable()
 
     fun initializePlayerHud(playerRef: PlayerRef, store: Store<EntityStore?>) {
         val player = store.getComponent(playerRef.reference!!, Player.getComponentType()) ?: return

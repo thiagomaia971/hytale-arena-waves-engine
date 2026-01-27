@@ -39,6 +39,7 @@ class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
                     val enemyComponent = store.getComponent(entityRef, EnemyComponent.getComponentType())!!
                     if (enemyComponent.sessionId == null) return
                     val event = EntityKilled().apply {
+                        this.entityRoleName = enemyComponent.entityRoleName!!
                         this.sessionId = enemyComponent.sessionId!!
                         this.entityId = entityUuid.toString()
                     }

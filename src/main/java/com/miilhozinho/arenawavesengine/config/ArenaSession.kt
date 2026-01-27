@@ -1,17 +1,11 @@
 package com.miilhozinho.arenawavesengine.config
 
-import com.hypixel.hytale.codec.Codec
-import com.hypixel.hytale.codec.KeyedCodec
-import com.hypixel.hytale.codec.builder.BuilderCodec
-import com.hypixel.hytale.codec.codecs.EnumCodec
-import com.hypixel.hytale.codec.codecs.map.MapCodec
 import com.hypixel.hytale.math.vector.Vector3d
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ScheduledFuture
-import java.util.function.Supplier
 
 class ArenaSession {
     var id: String = UUID.randomUUID().toString()
@@ -38,20 +32,39 @@ class ArenaSession {
         return state == WaveState.COMPLETED
     }
 
-    fun createWaveData(): WaveCurrentData {
+    fun getOrCreateCurrentWave(): WaveCurrentData {
         return wavesData.getOrPut(currentWave) {
-            val wavesData = WaveCurrentData()
-            val mapDef = ArenaWavesEngine.repository.getMapDefition(waveMapId) ?: return wavesData
+            val waveData = WaveCurrentData()
+            val mapDef = ArenaWavesEngine.repository.getMapDefinition(waveMapId) ?: return waveData
             val enemiesToKill = mapDef.waves[currentWave].enemies
-            val enemiesKilled: ConcurrentHashMap<String, Int> = ConcurrentHashMap()
+
             for (enemy in enemiesToKill) {
-                enemiesKilled[enemy.enemyType] = 0
+                waveData.addEnemyData( enemy.enemyType, WaveEnemyData().apply {
+                    this.enemyType = enemy.enemyType
+                    this.alives = enemy.count
+                })
             }
 
-            wavesData.enemiesKilled = enemiesKilled
-            return@getOrPut wavesData
+            return@getOrPut waveData
         }
     }
+
+//    fun getOrCreateCurrentWave(): WaveCurrentData {
+//        return wavesData.getOrPut(currentWave) {
+//            val wavesData = WaveCurrentData()
+//            val mapDef = ArenaWavesEngine.repository.get().getArenaDefinition(waveMapId) ?: return wavesData
+//            val enemiesToKill = mapDef.waves[currentWave].enemies
+//
+//            for (enemy in enemiesToKill) {
+//                wavesData.addEnemyData( enemy.enemyType, WaveEnemyData().apply {
+//                    this.enemyType = enemy.enemyType
+//                    this.alives = enemy.count
+//                })
+//            }
+//
+//            return@getOrPut wavesData
+//        }
+//    }
 
     fun getDamageScore(playerId: String): Int {
         return wavesData.values.map { it.damage[playerId]?.toInt() ?: 0 }.sum()

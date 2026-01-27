@@ -55,7 +55,6 @@ class ArenaWavesEngineConfig {
             )
         }
     )
-    var sessions: List<ArenaSession> = listOf()
 
     /**
      * Legacy validation method (now delegates to new validation system)

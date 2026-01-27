@@ -13,26 +13,33 @@ class ActiveSessionHud{
         fun createTemplateProcessor(session: ArenaSession, playerId: String): TemplateProcessor {
             val template = TemplateProcessor()
                 .registerComponent("enemyMob", enemyMobComponent)
+
             val mapDef = ArenaWavesEngine.repository.get().arenaMaps.find { it.id == session.waveMapId } ?: return template
-            val currentWaveDef = mapDef.waves[session.currentWave] ?: return template
+//            val currentWaveDef = mapDef.waves[session.currentWave] ?: return template
             val currentWaveData = session.wavesData[session.currentWave] ?: return template
 
-            val enemiesKilled = currentWaveData.enemiesKilled.values.sum()
-            val totalEnemiesWave = currentWaveDef.enemies.sumOf { it.count }
+            val enemiesKilled = currentWaveData.enemies.values.sumOf {it.killed}
+            val totalEnemiesWave = currentWaveData.enemies.values.sumOf {it.getTotalEnemiesWave()}
             val progressBarValue = enemiesKilled.toFloat() / totalEnemiesWave.toFloat()
+            val enemiesList = currentWaveData.enemies.values.toList()
+
+
+//            val enemiesMobRow = session.createWaveData().enemiesKilled.map { object {
+//                val name = it.key;
+//                val countIsAlive = (currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0) - it.value;
+//                val countDef = currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0 };
+//                val aliveColor = "#5D7A94"
+////                val aliveColor = if ((currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0) - it.value == 0) "#5D7A94" else "#FFAD42"
+//            }
             LogUtil.debug("Drawing ${Gson().toJson(session)}")
 
-            template.setVariable("mapName", mapDef.name)
+            template.setVariable("mapName", session.waveMapId)
             template.setVariable("waveCount", "${session.currentWave + 1} / ${mapDef.waves.count()}")
             template.setVariable("enemiesRemain", "${(totalEnemiesWave - enemiesKilled)} / $totalEnemiesWave")
             template.setVariable("waveProgressBar", progressBarValue)
             template.setVariable("waveProgressLabel", "${(progressBarValue * 100).toInt()}%")
             template.setVariable("playerScore", session.getDamageScore(playerId))
-            template.setVariable("enemiesKilled", session.createWaveData().enemiesKilled.map { object {
-                val name = it.key;
-                val countIsAlive = (currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0) - it.value;
-                val countDef = currentWaveDef.enemies.find { e-> e.enemyType == it.key}?.count ?: 0 }
-            })
+            template.setVariable("enemiesData", enemiesList)
 
             return template;
         }
@@ -159,12 +166,12 @@ class ActiveSessionHud{
                 </div>
             </div>
             <div style="anchor-top: 20;"></div>
-            {{#each enemiesKilled}}
-                {{@enemyMob:}}
+            {{#each enemiesData}}
+                {{@enemyMob}}
                 <!--
                 <div class="mob-row"> 
-                    <p class="mob-text">{{${'$'}name}}</p>
-                    <p class="mob-count" style="color: #5D7A94; font-weight: bold;">{{${'$'}countIsAlive}}</p>
+                    <p class="mob-text">{{${'$'}enemyType}}</p>
+                    <p class="mob-count" style="color: #5D7A94; font-weight: bold;">{{${'$'}alives}}</p>
                     <p class="mob-count" style="color: #5D7A94;">/{{${'$'}countDef}}</p>
                 </div>
                 -->
@@ -193,9 +200,16 @@ class ActiveSessionHud{
 
         val enemyMobComponent = """
             <div class="mob-row"> 
-                <p class="mob-text">{{${'$'}name}}</p>
-                <p class="mob-count" style="color: #5D7A94; font-weight: bold;">{{${'$'}countIsAlive}}</p>
-                <p class="mob-count" style="color: #5D7A94;">/{{${'$'}countDef}}</p>
+                {{#if alives == 0}}
+                    <p class="mob-text">{{${'$'}enemyType}}</p>
+                    <p class="mob-count" style="color: #55FF55; font-weight: bold;">{{${'$'}alives}}</p>
+                    <p class="mob-count" style="color: #55FF55;">/{{${'$'}totalEnemiesWave}}</p>
+                {{else}}
+                    <p class="mob-text">{{${'$'}enemyType}}</p>
+                    <p class="mob-count" style="color: #FFAD42; font-weight: bold;">{{${'$'}alives}}</p>
+                    <p class="mob-count" style="color: #FFAD42;">/{{${'$'}totalEnemiesWave}}</p>
+                    
+                {{/if}}
             </div>
         """.trimIndent()
     }

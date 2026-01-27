@@ -12,20 +12,9 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Supplier
 
 object ArenaWavesEngineConfigCodec {
-    private val ENTITY_MAP_CODEC = MapCodec<String, ConcurrentHashMap<String, String>>(
-        Codec.STRING,
-        { ConcurrentHashMap<String, String>() },
-        false // false = Modifiable so we can clear/putAll
-    )
-
     private val ARENA_MAP_DEF_ARRAY_CODEC = ArrayCodec<ArenaMapDefinition>(
         ArenaMapDefinitionCodec.CODEC,
         { size -> arrayOfNulls<ArenaMapDefinition>(size) }
-    )
-
-    private val ARENA_SESSION_DEF_ARRAY_CODEC = ArrayCodec<ArenaSession>(
-        ArenaSessionCodec.CODEC,
-        { size -> arrayOfNulls<ArenaSession>(size) }
     )
 
     /**
@@ -75,11 +64,6 @@ object ArenaWavesEngineConfigCodec {
             KeyedCodec("ArenaMaps", ARENA_MAP_DEF_ARRAY_CODEC),
             { config, value, _ -> config!!.arenaMaps = value.toList() },
             { config, _ -> config!!.arenaMaps.toTypedArray() }
-        ).add()
-        .append(
-            KeyedCodec("Sessions", ARENA_SESSION_DEF_ARRAY_CODEC),
-            { config, value, _ -> config!!.sessions = value.toList() },
-            { config, _ -> config!!.sessions.toTypedArray() }
         ).add()
         .build()
 }

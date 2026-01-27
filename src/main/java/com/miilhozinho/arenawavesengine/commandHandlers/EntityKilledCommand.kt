@@ -15,7 +15,7 @@ class EntityKilledCommand(
 
     override fun execute(): CommandResult<Unit> {
         return try {
-            waveEngine.onEntityDeath(event.sessionId, event.entityId)
+            waveEngine.onEntityDeath(event.sessionId, event.entityId, event.entityRoleName)
             LogUtil.debug("[EntityKilledCommand] Processed death of entity ${event.entityId} in session ${event.sessionId}")
             CommandResult.Success(Unit)
 

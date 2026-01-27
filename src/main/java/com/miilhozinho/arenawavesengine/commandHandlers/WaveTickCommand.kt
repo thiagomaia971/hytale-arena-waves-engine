@@ -5,6 +5,7 @@ import com.hypixel.hytale.server.core.universe.Universe
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionUpdated
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.util.LogUtil
@@ -16,6 +17,7 @@ import com.miilhozinho.arenawavesengine.util.LogUtil
 class WaveTickCommand(
     private val waveEngine: WaveEngine,
     private val repository: ArenaWavesEngineRepository,
+    private val sessionRepository: ArenaSessionRepository,
     private val sessionId: String,
     private val event: SessionStarted
 ) : BaseWaveCommand<Unit>(priority = CommandPriority.NORMAL) {
@@ -26,7 +28,7 @@ class WaveTickCommand(
 
         return try {
             repository.loadConfig()
-            val session = repository.getSession(sessionId)
+            val session = sessionRepository.getSession(sessionId)
 
             if (session == null) {
                 LogUtil.debug("[WaveTickCommand] Session $sessionId no longer exists. Skipping tick.")
@@ -40,7 +42,7 @@ class WaveTickCommand(
                 return CommandResult.Success(Unit)
             }
 
-            val arenaMapDefinition = repository.findArenaMapDefinition(session.waveMapId)
+            val arenaMapDefinition = repository.getMapDefinition(session.waveMapId)
 
             when (session.state) {
                 WaveState.RUNNING         -> waveEngine.prepareWave(session, arenaMapDefinition)
@@ -51,9 +53,10 @@ class WaveTickCommand(
                 else -> LogUtil.warn("[WaveTickCommand] Unhandled state ${session.state} for $sessionId")
             }
 
-            if (repository.save())
+            if (sessionRepository.saveSession(session, WaveTickCommand::class.simpleName)) {
                 HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
                     .dispatch(SessionUpdated(session))
+            }
 
             CommandResult.Success(Unit)
 

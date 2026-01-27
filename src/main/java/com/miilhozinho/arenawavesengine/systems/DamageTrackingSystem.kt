@@ -12,9 +12,13 @@ import com.hypixel.hytale.server.core.modules.entity.damage.DamageEventSystem
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.miilhozinho.arenawavesengine.components.EnemyComponent
 import com.miilhozinho.arenawavesengine.events.SessionUpdated
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 
-class DamageTrackingSystem(val repository: ArenaWavesEngineRepository) : DamageEventSystem() {
+class DamageTrackingSystem(
+    private val repository: ArenaWavesEngineRepository,
+    private val sessionRepository: ArenaSessionRepository
+) : DamageEventSystem() {
 
     override fun handle(
         index: Int, archetypeChunk: ArchetypeChunk<EntityStore>,
@@ -23,13 +27,12 @@ class DamageTrackingSystem(val repository: ArenaWavesEngineRepository) : DamageE
         damage: Damage)
     {
         val targetRef = archetypeChunk.getReferenceTo(index)
-        if (targetRef != null && targetRef.isValid()) {
-            val targetUuidComponent =
-                store.getComponent<UUIDComponent?>(targetRef, UUIDComponent.getComponentType()) ?: return
-
+        if (targetRef.isValid) {
             val enemyComponent = store.getComponent(targetRef, EnemyComponent.getComponentType()) ?: return
             if (enemyComponent.sessionId == null) return
-            val currentWave = repository.getCurrentWave(enemyComponent.sessionId!!) ?: return
+
+            val session = sessionRepository.getSession(enemyComponent.sessionId!!) ?: return
+            val currentWave = session.getOrCreateCurrentWave()
 
             val damageSource = damage.source
             if (damageSource !is EntitySource)
@@ -49,7 +52,7 @@ class DamageTrackingSystem(val repository: ArenaWavesEngineRepository) : DamageE
 
             repository.save()
             HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
-                .dispatch(SessionUpdated(repository.getSession(enemyComponent.sessionId!!)!!))
+                .dispatch(SessionUpdated(sessionRepository.getSession(enemyComponent.sessionId!!)!!))
         }
     }
 

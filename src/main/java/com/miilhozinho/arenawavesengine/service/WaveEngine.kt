@@ -1,53 +1,58 @@
 package com.miilhozinho.arenawavesengine.service
 
-import com.hypixel.hytale.component.ComponentRegistry
+import com.google.gson.Gson
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.core.universe.Universe
-import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
 import com.hypixel.hytale.server.npc.entities.NPCEntity
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine
+import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.eventRepository
+import com.miilhozinho.arenawavesengine.commandHandlers.SessionPausedCommand
+import com.miilhozinho.arenawavesengine.commandHandlers.WaveTickCommand
 import com.miilhozinho.arenawavesengine.components.EnemyComponent
 import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionUpdated
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
 
-class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
+class WaveEngine(
+    val arenaWavesEngineRepository: ArenaWavesEngineRepository,
+    val sessionRepository: ArenaSessionRepository,) {
 
     private val npcSpawn = NpcSpawn()
 
     fun prepareWave(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to prepare wave: Map ${session.waveMapId} not found")
-            transitionTo(session, WaveState.FAILED)
+            transitionTo(session, WaveState.FAILED, WaveTickCommand::class.simpleName!!)
             return
         }
 
         if (session.currentWave >= arenaMapDefinition.waves.size) {
             LogUtil.debug("[WaveEngine] All waves (${arenaMapDefinition.waves.size}) completed for session ${session.id}")
-            transitionTo(session, WaveState.COMPLETED)
+            transitionTo(session, WaveState.COMPLETED, WaveTickCommand::class.simpleName!!)
             return
         }
 
         LogUtil.debug("[WaveEngine] Preparing wave ${session.currentWave} for session ${session.id}")
         session.currentWaveSpawnProgress.clear()
 
-        val waveData = session.createWaveData()
+        val waveData = session.getOrCreateCurrentWave()
         waveData.startTime = System.currentTimeMillis()
-        transitionTo(session, WaveState.SPAWNING)
+        transitionTo(session, WaveState.SPAWNING, WaveTickCommand::class.simpleName!!)
     }
 
     fun handleSpawning(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?, event: SessionStarted) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to spawn wave: Map ${session.waveMapId} not found")
-            transitionTo(session, WaveState.FAILED)
+            transitionTo(session, WaveState.FAILED, WaveTickCommand::class.simpleName!!)
             return
         }
 
@@ -89,7 +94,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         if (isWaveFullySpawned(session, waveDef)) {
             LogUtil.debug("[WaveEngine] Wave ${session.currentWave} fully spawned for ${session.id}. Moving to clear phase.")
-            transitionTo(session, WaveState.WAITING_CLEAR)
+            transitionTo(session, WaveState.WAITING_CLEAR, WaveTickCommand::class.simpleName!!)
         }
     }
 
@@ -106,14 +111,14 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
                 LogUtil.info("[WaveEngine] Wave ${session.currentWave} cleared in $durationSeconds seconds.")
             }
 
-            transitionTo(session, WaveState.WAITING_INTERVAL)
+            transitionTo(session, WaveState.WAITING_INTERVAL, WaveTickCommand::class.simpleName!!)
         }
     }
 
     fun checkIntervalElapsed(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to check interval: Map ${session.waveMapId} not found")
-            transitionTo(session, WaveState.FAILED)
+            transitionTo(session, WaveState.FAILED, WaveTickCommand::class.simpleName!!)
             return
         }
 
@@ -135,15 +140,15 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
     private fun markToNextWave(session: ArenaSession, arenaMapDefinition: ArenaMapDefinition?) {
         if (arenaMapDefinition == null) {
             LogUtil.severe("[WaveEngine] Failed to mark to next wave: Map ${session.waveMapId} not found")
-            transitionTo(session, WaveState.FAILED)
+            transitionTo(session, WaveState.FAILED, WaveTickCommand::class.simpleName!!)
             return
         }
 
         if (session.currentWave + 1 < arenaMapDefinition.waves.size) {
             session.currentWave++
-            transitionTo(session, WaveState.RUNNING)
+            transitionTo(session, WaveState.RUNNING, WaveTickCommand::class.simpleName!!)
         } else {
-            transitionTo(session, WaveState.COMPLETED)
+            transitionTo(session, WaveState.COMPLETED, WaveTickCommand::class.simpleName!!)
         }
     }
 
@@ -198,6 +203,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
                 spawnReturn.npc.reference!!.store.addComponent(spawnReturn.npc.reference!!, ArenaWavesEngine.enemyComponentType,
                     EnemyComponent().apply {
+                        this.entityRoleName = enemy.enemyType
                         this.entityId =  npcUuidComponent.uuid.toString()
                         this.sessionId = session.id
                         this.world = session.world
@@ -222,7 +228,7 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
     fun stopSession(sessionId: String, despawn: Boolean) {
         LogUtil.debug("[WaveEngine] Initiating soft despawn for session $sessionId")
 
-        val session = arenaWavesEngineRepository.getSession(sessionId)
+        val session = sessionRepository.getSession(sessionId)
         if (session == null) {
             LogUtil.warn("[WaveEngine] Error stop Session ${sessionId} not found")
             return
@@ -255,19 +261,25 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         session.activeEntities = emptyArray()
         session.currentWaveSpawnProgress.clear()
-        transitionTo(session, WaveState.STOPPED)
+        transitionTo(session, WaveState.STOPPED, SessionPausedCommand::class.simpleName!!)
     }
 
-    private fun transitionTo(session: ArenaSession, newState: WaveState) {
+    private fun transitionTo(session: ArenaSession, newState: WaveState, eventType: String) {
         if (session.state == newState) return
         val oldState = session.state
         session.state = newState
         LogUtil.info("[WaveEngine] Session ${session.id} state transition: $oldState -> $newState")
-        arenaWavesEngineRepository.markToSave()
+        eventRepository.addLog(session.id, EventDataLog().apply {
+            this.event = eventType
+            this.oldState = oldState.toString()
+            this.newState = newState.toString()
+            this.newSession = Gson().toJson(session)
+        })
+        sessionRepository.markToSave()
     }
 
-    fun onEntityDeath(sessionId: String, entityId: String) {
-        val session = arenaWavesEngineRepository.getSession(sessionId)
+    fun onEntityDeath(sessionId: String, entityId: String, entityRoleName: String) {
+        val session = sessionRepository.getSession(sessionId)
 
         if (session == null) {
             LogUtil.warn("[WaveEngine] Error save entity death on Session ${sessionId} not found")
@@ -278,13 +290,11 @@ class WaveEngine(val arenaWavesEngineRepository: ArenaWavesEngineRepository) {
 
         val world = Universe.get().worlds[session.world] ?: return
         world.execute {
-            val entityRef = world.getEntityRef(UUID.fromString(entityId)) ?: return@execute
-            val npcEntity = entityRef.store.getComponent(entityRef, NPCEntity.getComponentType()!!) as NPCEntity
-            val waveData = session.wavesData[session.currentWave] ?: return@execute
+            val waveData = session.getOrCreateCurrentWave()
+            waveData.increaseKilledEnemy(entityRoleName, entityId)
 
-            var enemyKilleds = waveData.enemiesKilled.getOrPut(npcEntity.roleName) { 0 }
-            waveData.enemiesKilled[npcEntity.roleName] = enemyKilleds + 1
-            arenaWavesEngineRepository.save(forceSave = true)
+            sessionRepository.markToSave()
+            sessionRepository.saveSession(session)
 
             HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
                 .dispatch(SessionUpdated(session))

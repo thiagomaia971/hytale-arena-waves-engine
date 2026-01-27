@@ -7,9 +7,6 @@ import com.hypixel.hytale.event.IEvent
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.Message
 import com.hypixel.hytale.server.core.command.system.CommandRegistration
-import com.hypixel.hytale.server.core.entity.Entity
-import com.hypixel.hytale.server.core.entity.UUIDComponent
-import com.hypixel.hytale.server.core.event.events.entity.EntityRemoveEvent
 import com.hypixel.hytale.server.core.event.events.player.PlayerReadyEvent
 import com.hypixel.hytale.server.core.plugin.JavaPlugin
 import com.hypixel.hytale.server.core.plugin.JavaPluginInit
@@ -24,10 +21,16 @@ import com.miilhozinho.arenawavesengine.components.EnemyDeathRegisteredComponent
 import com.miilhozinho.arenawavesengine.components.codecs.EnemyComponentCodec
 import com.miilhozinho.arenawavesengine.components.codecs.EnemyDeathRegisteredComponentCodec
 import com.miilhozinho.arenawavesengine.config.ArenaWavesEngineConfig
+import com.miilhozinho.arenawavesengine.config.EventLog
+import com.miilhozinho.arenawavesengine.config.SessionsConfig
 import com.miilhozinho.arenawavesengine.config.codecs.ArenaWavesEngineConfigCodec
+import com.miilhozinho.arenawavesengine.config.codecs.EventLogCodec
+import com.miilhozinho.arenawavesengine.config.codecs.SessionsConfigCodec
 import com.miilhozinho.arenawavesengine.events.*
 import com.miilhozinho.arenawavesengine.hud.ActiveSessionHudManager
+import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
+import com.miilhozinho.arenawavesengine.repositories.EventLogRepository
 import com.miilhozinho.arenawavesengine.service.LogType
 import com.miilhozinho.arenawavesengine.service.PlayerMessageManager
 import com.miilhozinho.arenawavesengine.service.WaveEngine
@@ -36,12 +39,13 @@ import com.miilhozinho.arenawavesengine.systems.DamageTrackingSystem
 import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
 import com.miilhozinho.arenawavesengine.util.ConfigLoader
 import com.miilhozinho.arenawavesengine.util.LogUtil
-import java.util.*
 
 
 class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     // Wave services
     var configState: Config<ArenaWavesEngineConfig>? = null
+    var sessionsState: Config<SessionsConfig>? = null
+    var eventLogState: Config<EventLog>? = null
     var config: ArenaWavesEngineConfig = ArenaWavesEngineConfig()
 
     lateinit var waveEngine: WaveEngine
@@ -55,11 +59,10 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
     init {
         try {
-            ConfigLoader(dataDirectory).createOrLoad(pluginName)
+//            ConfigLoader(dataDirectory).createOrLoad(pluginName)
             configState = this.withConfig<ArenaWavesEngineConfig>(pluginName, ArenaWavesEngineConfigCodec.CODEC)
-            enemyComponentType = this.entityStoreRegistry.registerComponent(EnemyComponent::class.java, "EnemyComponent", EnemyComponentCodec.CODEC) as ComponentType<EntityStore?, EnemyComponent>
-            enemyDeathRegisteredComponentType = this.entityStoreRegistry.registerComponent(EnemyDeathRegisteredComponent::class.java, "EnemyDeathRegisteredComponent",
-                EnemyDeathRegisteredComponentCodec.CODEC) as ComponentType<EntityStore?, EnemyDeathRegisteredComponent>
+            sessionsState = this.withConfig<SessionsConfig>("Sessions", SessionsConfigCodec.CODEC)
+            eventLogState = this.withConfig<EventLog>("EventLog", EventLogCodec.CODEC)
         } catch (e: Exception) {
             LogUtil.severe("Failed to load configuration: ${e.message}")
             LogUtil.severe("Please check your config.json file for validation errors")
@@ -70,22 +73,32 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     override fun setup() {
         super.setup()
         repository = ArenaWavesEngineRepository(configState!!)
+        sessionRepository = ArenaSessionRepository(sessionsState!!)
+        eventRepository = EventLogRepository(eventLogState!!)
+
         config = repository.loadConfig()
         config.validate()
         isDebugLogs = config.debugLoggingEnabled
+        repository.save(true)
 
         if (config.debugLoggingEnabled == true) {
             LogUtil.info("Debug logging enabled")
         }
 
         // Initialize wave services
-        waveEngine = WaveEngine(repository)
-        waveScheduler = WaveScheduler(repository, waveEngine)
+        waveEngine = WaveEngine(repository, sessionRepository)
+        waveScheduler = WaveScheduler(repository, sessionRepository, waveEngine)
         activeSessionHudManager = ActiveSessionHudManager(repository)
 
         LogUtil.info("[ArenaWavesEngine] Wave services initialized")
+
+        enemyComponentType = this.entityStoreRegistry.registerComponent(EnemyComponent::class.java, "EnemyComponent", EnemyComponentCodec.CODEC) as ComponentType<EntityStore?, EnemyComponent>
+        enemyDeathRegisteredComponentType = this.entityStoreRegistry.registerComponent(EnemyDeathRegisteredComponent::class.java, "EnemyDeathRegisteredComponent",
+            EnemyDeathRegisteredComponentCodec.CODEC) as ComponentType<EntityStore?, EnemyDeathRegisteredComponent>
+
         commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand(activeSessionHudManager))
         commandStartEventRegistration = commandRegistry.registerCommand(HyUIShowcaseCommand())
+
         this.eventRegistry.registerGlobal(PlayerReadyEvent::class.java, { e ->
             val player = e.player ?: return@registerGlobal
             val ref = player.reference
@@ -97,7 +110,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         })
 
         entityStoreRegistry.registerSystem(DeathDetectionSystem())
-        entityStoreRegistry.registerSystem(DamageTrackingSystem(repository))
+        entityStoreRegistry.registerSystem(DamageTrackingSystem(repository, sessionRepository))
 
 //
         val eventBus = HytaleServer.get().eventBus
@@ -135,7 +148,7 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     }
 
     fun loadMapsOnStartupServer(event: StartWorldEvent) {
-        val allSessionsRunning = repository.getActiveSessions().filter { it.world == event.world.name }
+        val allSessionsRunning = sessionRepository.getActiveSessions().filter { it.world == event.world.name }
 
         for (session in allSessionsRunning) {
             // For server startup, we need to restart the wave processing for existing sessions
@@ -166,17 +179,12 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
             world.execute {
                 try {
                     activeSessionHudManager.initializePlayerHud(playerRef, store)
-                    val session = repository.getActiveSessions().find { it.owner == playerRef.uuid.toString() } ?: return@execute
+                    val session = sessionRepository.getActiveSessions().find { it.owner == playerRef.uuid.toString() } ?: return@execute
                     activeSessionHudManager.updateHud(session)
                 }catch (e: Exception){
                     PlayerMessageManager.sendMessage(playerRef.uuid.toString(), Message.raw(e.message!!), LogType.WARN)
                 }
             }
-//
-//
-//
-//            if (session != null) {
-//            }
 
         } catch (e: Exception){
             LogUtil.warn(e.localizedMessage)
@@ -199,6 +207,9 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         var pluginName = "ArenaWavesEngine"
         var isDebugLogs = false
         lateinit var repository: ArenaWavesEngineRepository
+        lateinit var sessionRepository: ArenaSessionRepository
+        lateinit var eventRepository: EventLogRepository
+
         var enemyComponentType: ComponentType<EntityStore?, EnemyComponent> = ComponentType<EntityStore?, EnemyComponent>()
         var enemyDeathRegisteredComponentType: ComponentType<EntityStore?, EnemyDeathRegisteredComponent> = ComponentType<EntityStore?, EnemyDeathRegisteredComponent>()
     }
