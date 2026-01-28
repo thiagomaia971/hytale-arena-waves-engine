@@ -20,7 +20,10 @@ import com.miilhozinho.arenawavesengine.components.EnemyComponent
 import com.miilhozinho.arenawavesengine.components.EnemyDeathRegisteredComponent
 import com.miilhozinho.arenawavesengine.events.EntityKilled
 
-class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
+class DeathDetectionSystem(
+    private val enemyComponentType: ComponentType<EntityStore?, EnemyComponent>,
+    private val enemyDeathRegisteredComponentType: ComponentType<EntityStore?, EnemyDeathRegisteredComponent>
+) : EntityTickingSystem<EntityStore>() {
 
     override fun tick(
         dt: Float,
@@ -36,7 +39,7 @@ class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
                 val uuidComponent = store.getComponent<UUIDComponent?>(entityRef, UUIDComponent.getComponentType())
                 if (uuidComponent != null) {
                     val entityUuid = uuidComponent.uuid
-                    val enemyComponent = store.getComponent(entityRef, EnemyComponent.getComponentType())!!
+                    val enemyComponent = store.getComponent(entityRef, enemyComponentType)!!
                     if (enemyComponent.sessionId == null) return
                     val event = EntityKilled().apply {
                         this.entityRoleName = enemyComponent.entityRoleName!!
@@ -47,7 +50,7 @@ class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
                     HytaleServer.get().eventBus.dispatchFor(EntityKilled::class.java).dispatch(event)
                     val world = Universe.get().getWorld(enemyComponent.world)!!
                     world.execute {
-                        entityRef.store.addComponent(entityRef, EnemyDeathRegisteredComponent.getComponentType(), EnemyDeathRegisteredComponent())
+                        entityRef.store.addComponent(entityRef, enemyDeathRegisteredComponentType, EnemyDeathRegisteredComponent())
                     }
                 }
             }
@@ -57,7 +60,7 @@ class DeathDetectionSystem() : EntityTickingSystem<EntityStore>() {
     override fun getQuery(): Query<EntityStore?>? {
         return Query.and(
             DeathComponent.getComponentType(),
-            ArenaWavesEngine.enemyComponentType,
-            Query.not(EnemyDeathRegisteredComponent.getComponentType()))
+            enemyComponentType,
+            Query.not(enemyDeathRegisteredComponentType))
     }
 }

@@ -2,6 +2,7 @@ package com.miilhozinho.arenawavesengine.systems
 
 import com.hypixel.hytale.component.ArchetypeChunk
 import com.hypixel.hytale.component.CommandBuffer
+import com.hypixel.hytale.component.ComponentType
 import com.hypixel.hytale.component.Store
 import com.hypixel.hytale.component.query.Query
 import com.hypixel.hytale.server.core.HytaleServer
@@ -16,6 +17,7 @@ import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
 import com.miilhozinho.arenawavesengine.repositories.ArenaWavesEngineRepository
 
 class DamageTrackingSystem(
+    private val enemyComponentType: ComponentType<EntityStore?, EnemyComponent>,
     private val repository: ArenaWavesEngineRepository,
     private val sessionRepository: ArenaSessionRepository
 ) : DamageEventSystem() {
@@ -28,7 +30,7 @@ class DamageTrackingSystem(
     {
         val targetRef = archetypeChunk.getReferenceTo(index)
         if (targetRef.isValid) {
-            val enemyComponent = store.getComponent(targetRef, EnemyComponent.getComponentType()) ?: return
+            val enemyComponent = store.getComponent(targetRef, enemyComponentType) ?: return
             if (enemyComponent.sessionId == null) return
 
             val session = sessionRepository.getSession(enemyComponent.sessionId!!) ?: return
@@ -57,6 +59,6 @@ class DamageTrackingSystem(
     }
 
     override fun getQuery(): Query<EntityStore?>? {
-        return Query.and(EnemyComponent.getComponentType())
+        return Query.and(enemyComponentType)
     }
 }

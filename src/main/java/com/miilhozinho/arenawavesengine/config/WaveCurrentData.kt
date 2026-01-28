@@ -32,4 +32,8 @@ class WaveCurrentData {
         val json = gson.toJson(this.enemies.values.toList())
         return Gson().fromJson(json, Array<Any>::class.java)
     }
+
+    fun isCleared(): Boolean {
+        return enemies.values.all { it.alives == 0 }
+    }
 }

@@ -27,7 +27,7 @@ class WaveTickCommand(
 //        val world = Universe.get().worlds.get(worldName) ?: return CommandResult.Success(Unit)
 
         return try {
-            repository.loadConfig()
+            sessionRepository.loadConfig()
             val session = sessionRepository.getSession(sessionId)
 
             if (session == null) {
@@ -53,10 +53,10 @@ class WaveTickCommand(
                 else -> LogUtil.warn("[WaveTickCommand] Unhandled state ${session.state} for $sessionId")
             }
 
-            if (sessionRepository.saveSession(session, WaveTickCommand::class.simpleName)) {
-                HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
-                    .dispatch(SessionUpdated(session))
-            }
+            sessionRepository.saveSession(session, WaveTickCommand::class.simpleName)
+
+            HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
+                .dispatch(SessionUpdated(session))
 
             CommandResult.Success(Unit)
 

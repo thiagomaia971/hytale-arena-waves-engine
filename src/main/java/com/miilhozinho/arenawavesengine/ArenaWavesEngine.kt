@@ -1,6 +1,6 @@
 package com.miilhozinho.arenawavesengine
 
-import au.ellie.hyui.commands.HyUIShowcaseCommand
+import au.ellie.hyui.commands.*
 import com.hypixel.hytale.component.ComponentType
 import com.hypixel.hytale.event.EventRegistration
 import com.hypixel.hytale.event.IEvent
@@ -37,7 +37,6 @@ import com.miilhozinho.arenawavesengine.service.WaveEngine
 import com.miilhozinho.arenawavesengine.service.WaveScheduler
 import com.miilhozinho.arenawavesengine.systems.DamageTrackingSystem
 import com.miilhozinho.arenawavesengine.systems.DeathDetectionSystem
-import com.miilhozinho.arenawavesengine.util.ConfigLoader
 import com.miilhozinho.arenawavesengine.util.LogUtil
 
 
@@ -52,8 +51,11 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
     lateinit var waveScheduler: WaveScheduler
     lateinit var activeSessionHudManager: ActiveSessionHudManager
 
+    var enemyComponentType: ComponentType<EntityStore?, EnemyComponent>? = null
+    var enemyDeathRegisteredComponentType: ComponentType<EntityStore?, EnemyDeathRegisteredComponent>? = null
 
-    var commandStartEventRegistration: CommandRegistration? = null
+
+    var commandRegistrations: Array<CommandRegistration?> = emptyArray()
     var domainEventsRegistration: Array<EventRegistration<Void, IEvent<Void>>?> = arrayOf()
 
 
@@ -85,19 +87,27 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
             LogUtil.info("Debug logging enabled")
         }
 
-        // Initialize wave services
-        waveEngine = WaveEngine(repository, sessionRepository)
-        waveScheduler = WaveScheduler(repository, sessionRepository, waveEngine)
-        activeSessionHudManager = ActiveSessionHudManager(repository)
-
-        LogUtil.info("[ArenaWavesEngine] Wave services initialized")
-
         enemyComponentType = this.entityStoreRegistry.registerComponent(EnemyComponent::class.java, "EnemyComponent", EnemyComponentCodec.CODEC) as ComponentType<EntityStore?, EnemyComponent>
         enemyDeathRegisteredComponentType = this.entityStoreRegistry.registerComponent(EnemyDeathRegisteredComponent::class.java, "EnemyDeathRegisteredComponent",
             EnemyDeathRegisteredComponentCodec.CODEC) as ComponentType<EntityStore?, EnemyDeathRegisteredComponent>
+        if (enemyComponentType == null || enemyDeathRegisteredComponentType == null) return
 
-        commandStartEventRegistration = commandRegistry.registerCommand(ArenaWavesEngineCommand(activeSessionHudManager))
-        commandStartEventRegistration = commandRegistry.registerCommand(HyUIShowcaseCommand())
+        // Initialize wave services
+        waveEngine = WaveEngine(enemyComponentType!!, repository, sessionRepository)
+        waveScheduler = WaveScheduler(repository, sessionRepository, waveEngine)
+        activeSessionHudManager = ActiveSessionHudManager(repository, sessionRepository)
+
+        LogUtil.info("[ArenaWavesEngine] Wave services initialized")
+
+        commandRegistrations += commandRegistry.registerCommand(HyUITestGuiCommand())
+        commandRegistrations += commandRegistry.registerCommand(HyUIAddHudCommand())
+        commandRegistrations += commandRegistry.registerCommand(HyUIRemHudCommand())
+        commandRegistrations += commandRegistry.registerCommand(HyUIUpdateHudCommand())
+        commandRegistrations += commandRegistry.registerCommand(HyUIShowcaseCommand())
+        commandRegistrations += commandRegistry.registerCommand(HyUITemplateRuntimeCommand())
+
+        commandRegistrations += commandRegistry.registerCommand(ArenaWavesEngineCommand(activeSessionHudManager))
+        commandRegistrations += commandRegistry.registerCommand(HyUIShowcaseCommand())
 
         this.eventRegistry.registerGlobal(PlayerReadyEvent::class.java, { e ->
             val player = e.player ?: return@registerGlobal
@@ -109,42 +119,33 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
             loadInitialHud(playerRef)
         })
 
-        entityStoreRegistry.registerSystem(DeathDetectionSystem())
-        entityStoreRegistry.registerSystem(DamageTrackingSystem(repository, sessionRepository))
 
-//
+        entityStoreRegistry.registerSystem(DeathDetectionSystem(enemyComponentType!!, enemyDeathRegisteredComponentType!!))
+        entityStoreRegistry.registerSystem(DamageTrackingSystem(enemyComponentType!!, repository, sessionRepository))
+
         val eventBus = HytaleServer.get().eventBus
         domainEventsRegistration += eventBus.registerGlobal(SessionStarted::class.java, { event -> waveScheduler.handleSessionStarted(event) }) as EventRegistration<Void, IEvent<Void>>?
-//        domainEventsRegistration += eventBus.registerGlobal(SessionStarted::class.java, { event -> activeSessionHudManager.openHud(event.sessionId, event.pla) })
         domainEventsRegistration += eventBus.registerGlobal(SessionUpdated::class.java, { event -> activeSessionHudManager.updateHud(event.session) }) as EventRegistration<Void, IEvent<Void>>?
 
         domainEventsRegistration += eventBus.registerGlobal(SessionPaused::class.java, { event -> waveScheduler.handleSessionPaused(event) }) as EventRegistration<Void, IEvent<Void>>?
         domainEventsRegistration += eventBus.registerGlobal(HudHided::class.java, { event -> activeSessionHudManager.removeAllHuds() }) as EventRegistration<Void, IEvent<Void>>?
 
         domainEventsRegistration += eventBus.registerGlobal(EntityKilled::class.java, { event -> waveScheduler.handleEntityKilled(event) }) as EventRegistration<Void, IEvent<Void>>?
-//        domainEventsRegistration += eventBus.registerGlobal(EntityRemoveEvent::class.java, { event ->
-//            val deadEntity = event.entity!!
-//            val world = deadEntity.world!!
-//            val entityStore = world.entityStore
-//            val store = entityStore.store
-//            deadEntity.reference.store.registry.regis
-//
-//            val entityUuid = store.getComponent(deadEntity.reference!!, UUIDComponent.getComponentType()) as UUIDComponent?
-//
-//            waveScheduler.handleEntityKilled(EntityKilled().apply { this.entityId = entityUuid?.uuid.toString() })
-//        }) as EventRegistration<Void, IEvent<Void>>?
         domainEventsRegistration += eventBus.registerGlobal(DamageDealt::class.java, { event -> waveScheduler.handleDamageDealt(event) }) as EventRegistration<Void, IEvent<Void>>?
 
         domainEventsRegistration += eventRegistry.registerGlobal(StartWorldEvent::class.java, { event -> loadMapsOnStartupServer(event)}) as EventRegistration<Void, IEvent<Void>>?
+
     }
 
 
     override fun start() {
         LogUtil.info("Start")
 
+
         val playersOn = Universe.get().players
         for (playerRef in playersOn)
             loadInitialHud(playerRef)
+
     }
 
     fun loadMapsOnStartupServer(event: StartWorldEvent) {
@@ -193,10 +194,13 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
 
 
     override fun shutdown() {
+        enemyComponentType = null
+        enemyDeathRegisteredComponentType = null
         activeSessionHudManager.removeAllHuds()
 
-//        waveScheduler.shutdown()
-        commandStartEventRegistration?.unregister()
+        waveScheduler.shutdown()
+        for (command in commandRegistrations)
+            command?.unregister()
         for (session in domainEventsRegistration)
             session?.unregister()
 
@@ -209,8 +213,5 @@ class ArenaWavesEngine(init: JavaPluginInit) : JavaPlugin(init) {
         lateinit var repository: ArenaWavesEngineRepository
         lateinit var sessionRepository: ArenaSessionRepository
         lateinit var eventRepository: EventLogRepository
-
-        var enemyComponentType: ComponentType<EntityStore?, EnemyComponent> = ComponentType<EntityStore?, EnemyComponent>()
-        var enemyDeathRegisteredComponentType: ComponentType<EntityStore?, EnemyDeathRegisteredComponent> = ComponentType<EntityStore?, EnemyDeathRegisteredComponent>()
     }
 }

@@ -1,9 +1,7 @@
 package com.miilhozinho.arenawavesengine.components
 
 import com.hypixel.hytale.component.Component
-import com.hypixel.hytale.component.ComponentType
 import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
-import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 
 class EnemyComponent()
     : Component<EntityStore?> {
@@ -19,11 +17,5 @@ class EnemyComponent()
         component.sessionId = sessionId
         component.world = world
         return component as Component<EntityStore?>?
-    }
-
-    companion object {
-        fun getComponentType(): ComponentType<EntityStore?, EnemyComponent> {
-            return ArenaWavesEngine.enemyComponentType
-        }
     }
 }

@@ -1,0 +1,10 @@
+Group {
+    Anchor: (Width: 100, Height: 30, Right: 40, Top: 50);
+
+    Label #EnemiesTotalWave {
+        Anchor: (Left: 0);
+        Text: "0";
+        //HorizontalAlignment: Center;
+        //FlexWeight: 1;
+    }
+}

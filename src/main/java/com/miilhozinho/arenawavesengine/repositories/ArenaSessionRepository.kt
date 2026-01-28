@@ -19,14 +19,15 @@ class ArenaSessionRepository(fileConfig: Config<SessionsConfig>) : Repository<Se
         return get().sessions[sessionId]
     }
 
-    fun saveSession(session: ArenaSession, eventName: String? = null): Boolean {
-        if (!markToSave) return false
+    fun saveSession(session: ArenaSession, eventName: String? = null, forceSave: Boolean = false): Boolean {
+        if (!(markToSave || forceSave)) return false
+        markToSave = false
         val oldSession = oldState.sessions[session.id]
         val config = fileConfig.get() as SessionsConfig
 
         config.sessions.getOrPut(session.id) { session }
 //        config.sessions[session.id] = session
-        currentConfig?.sessions[session.id] = session
+        currentConfig.sessions[session.id] = session
 
         save(true)
 

@@ -1,20 +1,22 @@
 package com.miilhozinho.arenawavesengine.service
 
 import com.google.gson.Gson
+import com.hypixel.hytale.component.ComponentType
 import com.hypixel.hytale.server.core.HytaleServer
 import com.hypixel.hytale.server.core.command.system.ParseResult
 import com.hypixel.hytale.server.core.entity.UUIDComponent
 import com.hypixel.hytale.server.core.universe.Universe
+import com.hypixel.hytale.server.core.universe.world.storage.EntityStore
 import com.hypixel.hytale.server.npc.asset.builder.BuilderInfo
 import com.hypixel.hytale.server.npc.commands.NPCCommand.NPC_ROLE
 import com.hypixel.hytale.server.npc.entities.NPCEntity
-import com.miilhozinho.arenawavesengine.ArenaWavesEngine
 import com.miilhozinho.arenawavesengine.ArenaWavesEngine.Companion.eventRepository
 import com.miilhozinho.arenawavesengine.commandHandlers.SessionPausedCommand
 import com.miilhozinho.arenawavesengine.commandHandlers.WaveTickCommand
 import com.miilhozinho.arenawavesengine.components.EnemyComponent
 import com.miilhozinho.arenawavesengine.config.*
 import com.miilhozinho.arenawavesengine.domain.WaveState
+import com.miilhozinho.arenawavesengine.events.EntityKilled
 import com.miilhozinho.arenawavesengine.events.SessionStarted
 import com.miilhozinho.arenawavesengine.events.SessionUpdated
 import com.miilhozinho.arenawavesengine.repositories.ArenaSessionRepository
@@ -23,8 +25,9 @@ import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.util.*
 
 class WaveEngine(
-    val arenaWavesEngineRepository: ArenaWavesEngineRepository,
-    val sessionRepository: ArenaSessionRepository,) {
+    private val enemyComponentType: ComponentType<EntityStore?, EnemyComponent>,
+    private val arenaWavesEngineRepository: ArenaWavesEngineRepository,
+    private val sessionRepository: ArenaSessionRepository,) {
 
     private val npcSpawn = NpcSpawn()
 
@@ -99,7 +102,7 @@ class WaveEngine(
     }
 
     fun checkWaveCleared(session: ArenaSession) {
-        if (session.activeEntities.isEmpty()) {
+        if (session.getOrCreateCurrentWave().isCleared()) {
             val now = System.currentTimeMillis()
             LogUtil.debug("[WaveEngine] Wave ${session.currentWave} cleared for session ${session.id}. Starting interval wait.")
 
@@ -123,10 +126,7 @@ class WaveEngine(
         }
 
         val waveDef = arenaMapDefinition.waves.getOrNull(session.currentWave) ?: return
-
-        val waveData = session.wavesData[session.currentWave]
-        val waveClearTime = waveData?.clearTime ?: 0L
-        val elapsedTimeMs = System.currentTimeMillis() - waveClearTime
+        val elapsedTimeMs = session.getElapsedIntervalTime()
         val requiredIntervalMs = waveDef.interval * 1000L
 
         LogUtil.debug("[WaveEngine] Interval check: Elapsed=${elapsedTimeMs}ms, Required=${requiredIntervalMs}ms for session ${session.id}")
@@ -201,7 +201,7 @@ class WaveEngine(
                 )
 
 
-                spawnReturn.npc.reference!!.store.addComponent(spawnReturn.npc.reference!!, ArenaWavesEngine.enemyComponentType,
+                spawnReturn.npc.reference!!.store.addComponent(spawnReturn.npc.reference!!, enemyComponentType,
                     EnemyComponent().apply {
                         this.entityRoleName = enemy.enemyType
                         this.entityId =  npcUuidComponent.uuid.toString()
@@ -294,7 +294,7 @@ class WaveEngine(
             waveData.increaseKilledEnemy(entityRoleName, entityId)
 
             sessionRepository.markToSave()
-            sessionRepository.saveSession(session)
+            sessionRepository.saveSession(session, EntityKilled::class.simpleName, true)
 
             HytaleServer.get().eventBus.dispatchFor(SessionUpdated::class.java)
                 .dispatch(SessionUpdated(session))

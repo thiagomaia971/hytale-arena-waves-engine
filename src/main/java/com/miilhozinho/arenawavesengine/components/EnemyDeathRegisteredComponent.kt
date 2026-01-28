@@ -9,10 +9,4 @@ class EnemyDeathRegisteredComponent(): Component<EntityStore?> {
     override fun clone(): Component<EntityStore?>? {
         return EnemyDeathRegisteredComponent()
     }
-
-    companion object {
-        fun getComponentType(): ComponentType<EntityStore?, EnemyDeathRegisteredComponent> {
-            return ArenaWavesEngine.enemyDeathRegisteredComponentType
-        }
-    }
 }

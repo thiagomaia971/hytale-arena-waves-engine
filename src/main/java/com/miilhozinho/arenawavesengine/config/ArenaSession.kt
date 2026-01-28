@@ -73,4 +73,27 @@ class ArenaSession {
     fun validate(): ArenaSession {
         return this
     }
+
+    fun getElapsedTime(): String {
+        val startedTime = startTime
+        val elapsedMillis: Long = System.currentTimeMillis() - startedTime
+        val seconds = (elapsedMillis / 1000).toInt() % 60
+        val minutes = (elapsedMillis / (1000 * 60)).toInt()
+        return String.format("%02d:%02d", minutes, seconds)
+    }
+
+    fun getElapsedIntervalTime(): Long {
+        val waveData = getOrCreateCurrentWave()
+        val waveClearTime = waveData.clearTime
+        val elapsedTimeMs = System.currentTimeMillis() - waveClearTime
+        return elapsedTimeMs
+    }
+
+    fun getElapsedIntervalLeftTime(arenaMapDefinition: ArenaMapDefinition): Int {
+        val waveDef = arenaMapDefinition.waves.getOrNull(currentWave) ?: return 0
+        val elapsedTimeMs = getElapsedIntervalTime()
+        val requiredIntervalMs = waveDef.interval * 1000L
+        val diff = requiredIntervalMs - elapsedTimeMs
+        return (diff / 1000).toInt() % 60
+    }
 }

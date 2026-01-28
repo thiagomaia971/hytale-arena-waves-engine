@@ -5,7 +5,7 @@ import com.hypixel.hytale.server.core.util.Config
 import com.miilhozinho.arenawavesengine.util.LogUtil
 import java.lang.reflect.Type
 
-open abstract class Repository<T>(
+abstract class Repository<T>(
     private val type: Type,
     val fileConfig: Config<T>) : IRepository<T> {
 
